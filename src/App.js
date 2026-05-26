@@ -38,7 +38,7 @@ const App = () => {
           <Routes location={location} key={location.pathname}>
             <Route element={<HomeRedirect />}>
               <Route path="/" element={<Home />} />
-              <Route path="/FAQ" element={<FAQ />} />
+              <Route path="/FA" element={<FAQ />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
