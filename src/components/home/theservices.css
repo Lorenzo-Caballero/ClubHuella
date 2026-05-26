@@ -1,0 +1,21 @@
+.service-card {
+    --service-start: entry 25%; /* Inicio de la animación */
+    --service-end: cover 30%; /* Fin de la animación */
+    animation-range: var(--service-start) var(--service-end);
+    animation-fill-mode: both;
+    animation-duration: 0.5s;
+}
+
+
+@keyframes appear {
+    from {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+  
+    to {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+  

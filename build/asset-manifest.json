@@ -1,0 +1,14 @@
+{
+  "files": {
+    "main.css": "/static/css/main.4525bd48.css",
+    "main.js": "/static/js/main.3ee04471.js",
+    "static/media/termo.png": "/static/media/termo.840f8a0b0762e1bcf390.png",
+    "index.html": "/index.html",
+    "main.4525bd48.css.map": "/static/css/main.4525bd48.css.map",
+    "main.3ee04471.js.map": "/static/js/main.3ee04471.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.4525bd48.css",
+    "static/js/main.3ee04471.js"
+  ]
+}
