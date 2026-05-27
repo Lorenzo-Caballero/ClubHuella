@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState,useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /* ============================================================
@@ -292,13 +292,17 @@ const StyleStep = ({ value, onChange, onNext }) => (
                 : 'border-neutral-200 hover:border-neutral-400'
             }`}
           >
-            <div className="aspect-[4/5] bg-neutral-100 relative overflow-hidden">
-              <div className="absolute inset-4 bg-neutral-900 rounded-xl flex items-center justify-center">
-                <span className="text-white/30 text-[9px] tracking-[0.3em] uppercase font-bold">
+            <div className="aspect-[4/5] bg-white relative overflow-hidden">
+              <div className="absolute inset-4 bg-white border border-neutral-200 rounded-xl flex flex-col items-center justify-center shadow-sm">
+                <span className="text-neutral-900 text-[10px] tracking-[0.28em] uppercase font-black">
                   {s.name}
                 </span>
+                <span className="mt-2 w-10 h-[1px] bg-neutral-300" />
+                <span className="mt-2 text-neutral-400 text-[8px] tracking-[0.25em] uppercase font-bold">
+                  Pet Edition
+                </span>
               </div>
-              <div className="absolute top-3 left-3 bg-white/95 backdrop-blur text-neutral-900 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase">
+              <div className="absolute top-3 left-3 bg-neutral-900 text-white px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase">
                 {s.tag}
               </div>
               {active && (
@@ -629,8 +633,8 @@ const GENERATION_PHASES = [
   'Identificando raza y características',
   'Estudiando referencias del estilo',
   'Generando composición',
-  'Aplicando estampa sobre la remera',
-  'Preparando mockup final',
+  'Limpiando el fondo blanco',
+  'Preparando diseño final',
 ];
 
 const GeneratingStep = ({ data, onDone, onError }) => {
@@ -690,11 +694,11 @@ const GeneratingStep = ({ data, onDone, onError }) => {
   }, [data, onDone, onError]);
 
   return (
-    <div className="fixed inset-0 bg-neutral-950 text-white flex flex-col z-50 overflow-hidden">
+    <div className="fixed inset-0 bg-white text-neutral-900 flex flex-col z-50 overflow-hidden">
       <div
-        className="absolute inset-0 opacity-[0.08] pointer-events-none"
+        className="absolute inset-0 opacity-[0.35] pointer-events-none"
         style={{
-          backgroundImage: `radial-gradient(circle at 20% 30%, white 0%, transparent 50%), radial-gradient(circle at 80% 70%, white 0%, transparent 50%)`,
+          backgroundImage: `radial-gradient(circle at 20% 30%, #f5f5f5 0%, transparent 50%), radial-gradient(circle at 80% 70%, #eeeeee 0%, transparent 50%)`,
         }}
       />
 
@@ -704,16 +708,16 @@ const GeneratingStep = ({ data, onDone, onError }) => {
           transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
           className="relative w-48 h-48"
         >
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white via-neutral-400 to-neutral-900 blur-2xl opacity-60" />
-          <div className="absolute inset-4 rounded-full bg-gradient-to-tr from-neutral-100 to-neutral-700 blur-xl opacity-80" />
-          <motion.div animate={{ rotate: -360 }} transition={{ duration: 20, repeat: Infinity, ease: 'linear' }} className="absolute inset-8 rounded-full border border-white/20" />
-          <motion.div animate={{ rotate: 360 }} transition={{ duration: 14, repeat: Infinity, ease: 'linear' }} className="absolute inset-12 rounded-full border border-white/30" />
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-neutral-100 via-neutral-200 to-white blur-2xl opacity-80" />
+          <div className="absolute inset-4 rounded-full bg-gradient-to-tr from-white to-neutral-200 blur-xl opacity-90" />
+          <motion.div animate={{ rotate: -360 }} transition={{ duration: 20, repeat: Infinity, ease: 'linear' }} className="absolute inset-8 rounded-full border border-neutral-200" />
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 14, repeat: Infinity, ease: 'linear' }} className="absolute inset-12 rounded-full border border-neutral-300" />
         </motion.div>
       </div>
 
       <div className="p-8 pb-12 max-w-md mx-auto w-full">
         <div className="mb-6">
-          <div className="text-[10px] font-bold tracking-[0.3em] uppercase text-neutral-500 mb-3">
+          <div className="text-[10px] font-bold tracking-[0.3em] uppercase text-neutral-400 mb-3">
             Creando algo único
           </div>
           <AnimatePresence mode="wait">
@@ -725,13 +729,13 @@ const GeneratingStep = ({ data, onDone, onError }) => {
               transition={{ duration: 0.4 }}
               className="text-2xl md:text-3xl font-black tracking-tight"
             >
-              {GENERATION_PHASES[phase]}<span className="text-neutral-500">.</span>
+              {GENERATION_PHASES[phase]}<span className="text-neutral-400">.</span>
             </motion.h2>
           </AnimatePresence>
         </div>
 
-        <div className="h-[2px] w-full bg-white/10 rounded-full overflow-hidden">
-          <motion.div className="h-full bg-white rounded-full" animate={{ width: `${progress}%` }} transition={{ duration: 0.3 }} />
+        <div className="h-[2px] w-full bg-neutral-100 rounded-full overflow-hidden">
+          <motion.div className="h-full bg-neutral-900 rounded-full" animate={{ width: `${progress}%` }} transition={{ duration: 0.3 }} />
         </div>
 
         <div className="mt-3 flex justify-between text-[10px] tracking-[0.25em] uppercase font-bold text-neutral-500">
@@ -790,7 +794,7 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-        className="mt-6 w-full bg-neutral-950 rounded-3xl overflow-hidden relative"
+        className="mt-6 w-full bg-white border border-neutral-200 rounded-3xl overflow-hidden relative shadow-sm"
       >
         {imageSrc ? (
           <img
@@ -812,7 +816,7 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
           </div>
         )}
 
-        <div className="absolute top-4 left-4 bg-white/95 backdrop-blur rounded-full px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase">
+        <div className="absolute top-4 left-4 bg-neutral-900 text-white backdrop-blur rounded-full px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase">
           Listo
         </div>
 
