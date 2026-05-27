@@ -14,8 +14,9 @@ import Footer from "./layout/Footer";
 
 import HomeRedirect from "./components/auth/HomeRedirect";
 import { AuthProvider } from "./components/context/AuthContext";
+import CreateFlow from "./pages/CreateFlow";
 
-import HugginFace from "./components/home/HugginFace";
+
 
 const clientID =
   "417226731712-f3l82nhqgsmcla4hu7ooamsk63cqi5vt.apps.googleusercontent.com";
@@ -32,20 +33,20 @@ const App = () => {
   return (
     <GoogleOAuthProvider clientId={clientID}>
       <AuthProvider>
-        {!isAdmin && <MainNavigation />}
+       
 
         <AnimatePresence exitBeforeEnter>
           <Routes location={location} key={location.pathname}>
             <Route element={<HomeRedirect />}>
               <Route path="/" element={<Home />} />
-              <Route path="/FA" element={<FAQ />} />
+              <Route path="/crear" element={<CreateFlow />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AnimatePresence>
 
-        {!isAdmin && <Footer />}
+  
       </AuthProvider>
     </GoogleOAuthProvider>
   );

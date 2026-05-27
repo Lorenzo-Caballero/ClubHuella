@@ -1,14 +1,15 @@
 {
   "files": {
-    "main.css": "/static/css/main.4525bd48.css",
-    "main.js": "/static/js/main.3ee04471.js",
-    "static/media/termo.png": "/static/media/termo.840f8a0b0762e1bcf390.png",
+    "main.css": "/static/css/main.45062bcc.css",
+    "main.js": "/static/js/main.9785b426.js",
+    "static/media/Nuvio.png": "/static/media/Nuvio.294376720a60f1de060b.png",
     "index.html": "/index.html",
-    "main.4525bd48.css.map": "/static/css/main.4525bd48.css.map",
-    "main.3ee04471.js.map": "/static/js/main.3ee04471.js.map"
+    "static/media/HambergurMenu.svg": "/static/media/HambergurMenu.9955f00c01a0988ffe2fb16386e78554.svg",
+    "main.45062bcc.css.map": "/static/css/main.45062bcc.css.map",
+    "main.9785b426.js.map": "/static/js/main.9785b426.js.map"
   },
   "entrypoints": [
-    "static/css/main.4525bd48.css",
-    "static/js/main.3ee04471.js"
+    "static/css/main.45062bcc.css",
+    "static/js/main.9785b426.js"
   ]
 }
