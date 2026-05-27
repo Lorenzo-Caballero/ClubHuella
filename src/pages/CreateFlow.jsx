@@ -5,8 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion';
    CONFIG
    ============================================================ */
 
-// ⚠️ Ajustá esta URL a tu dominio real
-const API_URL = 'https://aldanaselena.com/api/api.php';
+const API_URL = 'https://clubhuella.com/disenos.php';
+
+// URL base pública del servidor (para construir URLs de imágenes guardadas)
+// Ajustá si las carpetas están en un subdirectorio
+const SERVER_BASE_URL = 'https://clubhuella.com';
 
 const STEPS = [
   { id: 'style',      label: 'Estilo' },
@@ -39,18 +42,11 @@ const SIZES = [
 const PRICE = 42990;
 
 /* ============================================================
-   API CLIENT — centralizado para manejar errores consistentemente
+   API CLIENT
    ============================================================ */
 
-/**
- * Wrapper alrededor de fetch que:
- *  - Detecta errores de CORS / red y los traduce a mensajes humanos
- *  - Intenta parsear el body como JSON aunque el status no sea 2xx
- *  - Lanza Error con mensaje útil
- */
 async function apiRequest(path, options = {}) {
   let response;
-
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...options,
@@ -60,15 +56,12 @@ async function apiRequest(path, options = {}) {
       },
     });
   } catch (networkErr) {
-    // fetch lanza TypeError cuando hay CORS, red caída, certificado SSL roto, etc.
-    // El browser no nos da el detalle exacto por seguridad.
     console.error('[apiRequest] network error:', networkErr);
     throw new Error(
       'No pudimos conectar con el servidor. Puede ser un problema de CORS, conexión o que la API esté caída. Revisá la consola para más detalles.'
     );
   }
 
-  // Tratar de parsear JSON aunque el status sea 4xx/5xx
   let json = null;
   try {
     json = await response.json();
@@ -86,21 +79,36 @@ async function apiRequest(path, options = {}) {
 }
 
 /* ============================================================
+   UTILS — Resuelve la URL de la imagen generada
+   Acepta tanto data URLs (base64) como rutas relativas del servidor.
+   ============================================================ */
+
+function resolveImageSrc(imagenGenerada, imagenUrl) {
+  // Prioridad 1: data URL base64 (viene directo de Gemini en la respuesta)
+  if (imagenGenerada && imagenGenerada.startsWith('data:')) {
+    return imagenGenerada;
+  }
+  // Prioridad 2: imagen_generada como URL relativa (fallback por si el PHP la mandó así)
+  if (imagenGenerada && !imagenGenerada.startsWith('data:')) {
+    return `${SERVER_BASE_URL}/${imagenGenerada}`;
+  }
+  // Prioridad 3: imagen_url (ruta relativa guardada en disco)
+  if (imagenUrl) {
+    return `${SERVER_BASE_URL}/${imagenUrl}`;
+  }
+  return null;
+}
+
+/* ============================================================
    UTILS — iOS / archivos
    ============================================================ */
 
-/**
- * Toma un File (incluyendo HEIC de iPhone) y lo devuelve como dataURL JPEG
- * redimensionado, listo para subir al server.
- */
 async function fileToCompressedDataURL(file, maxSize = 1600, quality = 0.9) {
   let bitmap = null;
 
-  // Path A: createImageBitmap (rápido, soporta HEIC en iOS Safari 17+)
   try {
     bitmap = await createImageBitmap(file);
   } catch {
-    // Path B: FileReader + Image (fallback universal)
     const dataUrl = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
@@ -115,8 +123,6 @@ async function fileToCompressedDataURL(file, maxSize = 1600, quality = 0.9) {
       img.src = dataUrl;
     });
 
-    // Path C: no se pudo decodificar (HEIC en desktop sin soporte)
-    // Devolvemos el dataURL crudo para que el back haga lo que pueda
     if (!bitmap) {
       return { dataUrl, fileName: file.name, size: file.size };
     }
@@ -666,10 +672,11 @@ const SummaryStep = ({ data, onNext, onEdit }) => {
 };
 
 /* ============================================================
-   STEP 6 — GENERATING (con llamado real a Gemini)
+   STEP 6 — GENERATING
    ============================================================ */
 const GENERATION_PHASES = [
   'Analizando tu mascota',
+  'Identificando raza y características',
   'Estudiando referencias del estilo',
   'Generando composición',
   'Aplicando estampa sobre la remera',
@@ -681,11 +688,10 @@ const GeneratingStep = ({ data, onDone, onError }) => {
   const [progress, setProgress] = useState(0);
   const calledRef = useRef(false);
 
-  // Animación visual de fases (independiente del fetch real)
   useEffect(() => {
     const phaseInterval = setInterval(() => {
       setPhase((p) => (p < GENERATION_PHASES.length - 1 ? p + 1 : p));
-    }, 2500);
+    }, 2200);
 
     const progressInterval = setInterval(() => {
       setProgress((p) => (p < 92 ? p + 0.4 : p));
@@ -697,7 +703,6 @@ const GeneratingStep = ({ data, onDone, onError }) => {
     };
   }, []);
 
-  // Llamado real a la API una sola vez
   useEffect(() => {
     if (calledRef.current) return;
     calledRef.current = true;
@@ -797,6 +802,14 @@ const GeneratingStep = ({ data, onDone, onError }) => {
 const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
   const styleName = STYLES.find((s) => s.slug === data.style)?.name || '—';
 
+  // FIX: Resolver la URL de la imagen correctamente
+  // El PHP devuelve "imagen_generada" como data URL base64 — usamos eso directamente.
+  // Si por alguna razón viene como ruta relativa, la construimos con SERVER_BASE_URL.
+  const imageSrc = resolveImageSrc(
+    generated?.imagen_generada,
+    generated?.imagen_url
+  );
+
   return (
     <div className="min-h-[100dvh] pt-24 pb-32 px-5 max-w-2xl mx-auto w-full">
       <motion.div
@@ -812,39 +825,60 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
           <br />
           <span className="italic font-serif font-light text-neutral-500">edición {styleName.toLowerCase()}.</span>
         </h1>
+
+        {/* Badge de especie/raza si el servidor lo devolvió */}
+        {(generated?.especie || generated?.raza) && (
+          <div className="mt-3 flex gap-2 flex-wrap">
+            {generated.especie && generated.especie !== 'otro' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 text-[11px] font-bold tracking-wide uppercase text-neutral-600">
+                {generated.especie === 'perro' ? '🐕' : '🐈'} {generated.especie}
+              </span>
+            )}
+            {generated.raza && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full bg-neutral-100 text-[11px] font-bold tracking-wide uppercase text-neutral-600">
+                {generated.raza}
+              </span>
+            )}
+          </div>
+        )}
       </motion.div>
 
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-        className="mt-6 aspect-[4/5] w-full bg-neutral-100 rounded-3xl overflow-hidden relative"
+        className="mt-6 w-full bg-neutral-100 rounded-3xl overflow-hidden relative"
       >
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-[78%] h-[88%] bg-neutral-900 rounded-2xl relative flex items-center justify-center overflow-hidden">
-            {generated?.imagen_generada && (
-              <div className="w-[68%] aspect-square overflow-hidden">
-                <img
-                  src={generated.imagen_generada}
-                  alt={`Diseño de ${data.name}`}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="absolute top-5 left-5 bg-white/95 backdrop-blur rounded-full px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase">
-          Listo
-        </div>
-        {regenerating && (
-          <div className="absolute inset-0 bg-white/80 backdrop-blur flex items-center justify-center">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="w-10 h-10 border-2 border-neutral-300 border-t-neutral-900 rounded-full"
+        {/* Contenedor de la imagen generada — ocupa todo el ancho disponible */}
+        <div className="w-full relative bg-neutral-950 rounded-3xl overflow-hidden">
+          {imageSrc ? (
+            <img
+              src={imageSrc}
+              alt={`Diseño de ${data.name}`}
+              className="w-full h-auto block"
+              style={{ minHeight: '300px', objectFit: 'contain' }}
             />
+          ) : (
+            /* Placeholder si no hay imagen todavía */
+            <div className="aspect-square w-full flex items-center justify-center">
+              <div className="text-neutral-600 text-sm">Preparando imagen...</div>
+            </div>
+          )}
+
+          <div className="absolute top-4 left-4 bg-white/95 backdrop-blur rounded-full px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase">
+            Listo
           </div>
-        )}
+
+          {regenerating && (
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center rounded-3xl">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                className="w-10 h-10 border-2 border-white/30 border-t-white rounded-full"
+              />
+            </div>
+          )}
+        </div>
       </motion.div>
 
       <motion.div
