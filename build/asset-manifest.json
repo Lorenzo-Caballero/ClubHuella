@@ -1,15 +1,13 @@
 {
   "files": {
-    "main.css": "/static/css/main.45062bcc.css",
-    "main.js": "/static/js/main.9785b426.js",
-    "static/media/Nuvio.png": "/static/media/Nuvio.294376720a60f1de060b.png",
+    "main.css": "/static/css/main.a0b08796.css",
+    "main.js": "/static/js/main.0892af3d.js",
     "index.html": "/index.html",
-    "static/media/HambergurMenu.svg": "/static/media/HambergurMenu.9955f00c01a0988ffe2fb16386e78554.svg",
-    "main.45062bcc.css.map": "/static/css/main.45062bcc.css.map",
-    "main.9785b426.js.map": "/static/js/main.9785b426.js.map"
+    "main.a0b08796.css.map": "/static/css/main.a0b08796.css.map",
+    "main.0892af3d.js.map": "/static/js/main.0892af3d.js.map"
   },
   "entrypoints": [
-    "static/css/main.45062bcc.css",
-    "static/js/main.9785b426.js"
+    "static/css/main.a0b08796.css",
+    "static/js/main.0892af3d.js"
   ]
 }
