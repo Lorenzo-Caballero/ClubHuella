@@ -6,10 +6,10 @@ import { motion, AnimatePresence } from 'framer-motion';
    ============================================================ */
 
 const API_URL = 'https://clubhuella.com/disenos.php';
-
-// URL base pública del servidor (para construir URLs de imágenes guardadas)
-// Ajustá si las carpetas están en un subdirectorio
 const SERVER_BASE_URL = 'https://clubhuella.com';
+
+// Timeout en ms para la generación (2.5 min — Gemini puede tardar)
+const GENERATION_TIMEOUT_MS = 150_000;
 
 const STEPS = [
   { id: 'style',      label: 'Estilo' },
@@ -45,34 +45,52 @@ const PRICE = 42990;
    API CLIENT
    ============================================================ */
 
-async function apiRequest(path, options = {}) {
+async function apiRequest(path, options = {}, timeoutMs = 30_000) {
+  const controller = new AbortController();
+  const timerId = setTimeout(() => controller.abort(), timeoutMs);
+
   let response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...options,
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         ...(options.headers || {}),
       },
     });
   } catch (networkErr) {
+    clearTimeout(timerId);
+    if (networkErr.name === 'AbortError') {
+      throw new Error('La generación tardó demasiado. El servidor puede estar ocupado. Intentá de nuevo.');
+    }
     console.error('[apiRequest] network error:', networkErr);
     throw new Error(
-      'No pudimos conectar con el servidor. Puede ser un problema de CORS, conexión o que la API esté caída. Revisá la consola para más detalles.'
+      'No pudimos conectar con el servidor. Revisá tu conexión o intentá más tarde.'
     );
   }
 
+  clearTimeout(timerId);
+
+  // Capturar el texto crudo antes de parsear para poder debuggear
+  const rawText = await response.text();
+
   let json = null;
   try {
-    json = await response.json();
+    json = JSON.parse(rawText);
   } catch {
+    console.error('[apiRequest] respuesta no es JSON:', rawText.slice(0, 500));
     if (!response.ok) {
-      throw new Error(`Error ${response.status}: el servidor no devolvió JSON válido.`);
+      throw new Error(`Error ${response.status}: el servidor devolvió una respuesta inesperada.`);
     }
+    // Si el status es ok pero no es JSON, algo raro pasó
+    throw new Error('El servidor devolvió una respuesta inesperada. Revisá los logs del servidor.');
   }
 
   if (!response.ok || (json && json.error)) {
-    throw new Error(json?.error || `Error ${response.status}`);
+    const errMsg = json?.error || `Error ${response.status}`;
+    console.error('[apiRequest] error response:', json);
+    throw new Error(errMsg);
   }
 
   return json;
@@ -80,19 +98,16 @@ async function apiRequest(path, options = {}) {
 
 /* ============================================================
    UTILS — Resuelve la URL de la imagen generada
-   Acepta tanto data URLs (base64) como rutas relativas del servidor.
    ============================================================ */
 
 function resolveImageSrc(imagenGenerada, imagenUrl) {
-  // Prioridad 1: data URL base64 (viene directo de Gemini en la respuesta)
   if (imagenGenerada && imagenGenerada.startsWith('data:')) {
     return imagenGenerada;
   }
-  // Prioridad 2: imagen_generada como URL relativa (fallback por si el PHP la mandó así)
-  if (imagenGenerada && !imagenGenerada.startsWith('data:')) {
+  if (imagenGenerada && imagenGenerada.length > 0) {
+    // Puede ser una ruta relativa
     return `${SERVER_BASE_URL}/${imagenGenerada}`;
   }
-  // Prioridad 3: imagen_url (ruta relativa guardada en disco)
   if (imagenUrl) {
     return `${SERVER_BASE_URL}/${imagenUrl}`;
   }
@@ -426,7 +441,7 @@ const SizeStep = ({ value, onChange, onNext }) => (
 );
 
 /* ============================================================
-   STEP 4 — UPLOAD (soporte iOS / HEIC)
+   STEP 4 — UPLOAD
    ============================================================ */
 const UploadStep = ({ value, onChange, onNext }) => {
   const [drag, setDrag] = useState(false);
@@ -479,7 +494,7 @@ const UploadStep = ({ value, onChange, onNext }) => {
     <StepLayout
       eyebrow="04 · Foto de tu mascota"
       title="Subí una foto."
-      subtitle="Buena luz, fondo simple y la cara visible. Funciona desde iPhone, Android o compu."
+      subtitle="Buena luz, fondo simple y la cara visible."
       footer={
         <PrimaryButton onClick={onNext} disabled={!value || loading}>
           {loading ? 'Procesando...' : 'Continuar'}
@@ -499,39 +514,18 @@ const UploadStep = ({ value, onChange, onNext }) => {
                     'border-neutral-300 hover:border-neutral-500 bg-neutral-50 cursor-pointer'
         }`}
       >
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*,.heic,.heif"
-          className="hidden"
-          onChange={(e) => handleFile(e.target.files?.[0])}
-        />
-        <input
-          ref={cameraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => handleFile(e.target.files?.[0])}
-        />
+        <input ref={fileRef} type="file" accept="image/*,.heic,.heif" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
 
         {loading ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="w-10 h-10 border-2 border-neutral-300 border-t-neutral-900 rounded-full"
-            />
+            <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-10 h-10 border-2 border-neutral-300 border-t-neutral-900 rounded-full" />
             <div className="mt-4 text-sm font-semibold">Procesando imagen...</div>
           </div>
         ) : value ? (
           <>
             <img src={value.preview} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onChange(null); }}
-              className="absolute top-3 right-3 bg-white/95 backdrop-blur rounded-full px-3 py-1.5 text-xs font-bold tracking-wide hover:bg-white"
-            >
+            <button type="button" onClick={(e) => { e.stopPropagation(); onChange(null); }} className="absolute top-3 right-3 bg-white/95 backdrop-blur rounded-full px-3 py-1.5 text-xs font-bold tracking-wide hover:bg-white">
               Cambiar
             </button>
           </>
@@ -543,65 +537,27 @@ const UploadStep = ({ value, onChange, onNext }) => {
               </svg>
             </div>
             <div className="font-bold text-base">Subí una foto</div>
-            <div className="text-xs text-neutral-500 mt-1">
-              JPG · PNG · HEIC (iPhone) · hasta 25MB
-            </div>
+            <div className="text-xs text-neutral-500 mt-1">JPG · PNG · HEIC (iPhone) · hasta 25MB</div>
           </div>
         )}
       </div>
 
       {!value && !loading && (
         <div className="mt-4 grid grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="h-12 rounded-full border border-neutral-300 bg-white text-sm font-semibold hover:border-neutral-900 transition flex items-center justify-center gap-2"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="5" width="18" height="14" rx="2" />
-              <circle cx="9" cy="11" r="2" />
-              <path d="M21 15l-5-5L5 19" />
-            </svg>
+          <button type="button" onClick={() => fileRef.current?.click()} className="h-12 rounded-full border border-neutral-300 bg-white text-sm font-semibold hover:border-neutral-900 transition flex items-center justify-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="11" r="2" /><path d="M21 15l-5-5L5 19" /></svg>
             Galería
           </button>
-          <button
-            type="button"
-            onClick={() => cameraRef.current?.click()}
-            className="h-12 rounded-full border border-neutral-300 bg-white text-sm font-semibold hover:border-neutral-900 transition flex items-center justify-center gap-2"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 7h3l2-3h8l2 3h3v12H3z" />
-              <circle cx="12" cy="13" r="3.5" />
-            </svg>
+          <button type="button" onClick={() => cameraRef.current?.click()} className="h-12 rounded-full border border-neutral-300 bg-white text-sm font-semibold hover:border-neutral-900 transition flex items-center justify-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7h3l2-3h8l2 3h3v12H3z" /><circle cx="12" cy="13" r="3.5" /></svg>
             Cámara
           </button>
         </div>
       )}
 
       {error && (
-        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
-          {error}
-        </div>
+        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">{error}</div>
       )}
-
-      <div className="mt-5 space-y-2">
-        {[
-          { ok: true,  txt: 'Cara de tu mascota bien enfocada' },
-          { ok: true,  txt: 'Buena iluminación natural' },
-          { ok: false, txt: 'Evitar filtros o fotos pixeladas' },
-        ].map((tip, i) => (
-          <div key={i} className="flex items-center gap-3 text-sm">
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-              tip.ok ? 'bg-neutral-900' : 'bg-neutral-200'
-            }`}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={tip.ok ? 'white' : '#737373'} strokeWidth="3">
-                {tip.ok ? <path d="M5 12l5 5 9-11" /> : <path d="M6 6l12 12M18 6L6 18" />}
-              </svg>
-            </div>
-            <span className={tip.ok ? 'text-neutral-700' : 'text-neutral-400'}>{tip.txt}</span>
-          </div>
-        ))}
-      </div>
     </StepLayout>
   );
 };
@@ -623,7 +579,7 @@ const SummaryStep = ({ data, onNext, onEdit }) => {
     <StepLayout
       eyebrow="05 · Confirmar"
       title="Revisá antes de generar."
-      subtitle="Cuando confirmes, nuestra IA creará tu diseño. Puede tardar unos segundos."
+      subtitle="Cuando confirmes, nuestra IA creará tu diseño. Puede tardar hasta 2 minutos."
       footer={
         <PrimaryButton onClick={onNext}>
           Generar diseño
@@ -643,15 +599,10 @@ const SummaryStep = ({ data, onNext, onEdit }) => {
         {rows.map((r) => (
           <div key={r.label} className="flex items-center justify-between p-4">
             <div>
-              <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-neutral-500">
-                {r.label}
-              </div>
+              <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-neutral-500">{r.label}</div>
               <div className="font-semibold mt-0.5 truncate max-w-[180px]">{r.value}</div>
             </div>
-            <button
-              onClick={() => onEdit(r.step)}
-              className="text-xs font-bold text-neutral-900 underline underline-offset-4"
-            >
+            <button onClick={() => onEdit(r.step)} className="text-xs font-bold text-neutral-900 underline underline-offset-4">
               Editar
             </button>
           </div>
@@ -660,8 +611,7 @@ const SummaryStep = ({ data, onNext, onEdit }) => {
 
       <div className="mt-5 p-4 bg-neutral-900 text-white rounded-2xl flex items-start gap-3">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="flex-shrink-0 mt-0.5">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 8v4M12 16h.01" />
+          <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
         </svg>
         <p className="text-xs leading-relaxed text-neutral-300">
           La generación es única e irrepetible. Si no te gusta el resultado, podés regenerarlo una vez sin costo.
@@ -694,7 +644,7 @@ const GeneratingStep = ({ data, onDone, onError }) => {
     }, 2200);
 
     const progressInterval = setInterval(() => {
-      setProgress((p) => (p < 92 ? p + 0.4 : p));
+      setProgress((p) => (p < 90 ? p + 0.35 : p));
     }, 80);
 
     return () => {
@@ -709,21 +659,30 @@ const GeneratingStep = ({ data, onDone, onError }) => {
 
     const fetchDesign = async () => {
       try {
-        const json = await apiRequest('?recurso=generar', {
-          method: 'POST',
-          body: JSON.stringify({
-            estilo: data.style,
-            nombre: data.name,
-            talle:  data.size,
-            imagen: data.photo.preview,
-          }),
-        });
+        const json = await apiRequest(
+          '?recurso=generar',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              estilo: data.style,
+              nombre: data.name,
+              talle:  data.size,
+              imagen: data.photo.preview,
+            }),
+          },
+          GENERATION_TIMEOUT_MS
+        );
+
+        // Verificar que la respuesta tiene imagen
+        if (!json.imagen_generada && !json.imagen_url) {
+          throw new Error('El servidor no devolvió imagen. Intentá de nuevo.');
+        }
 
         setProgress(100);
-        setTimeout(() => onDone(json), 500);
+        setTimeout(() => onDone(json), 600);
       } catch (err) {
-        console.error('[GeneratingStep]', err);
-        onError(err.message || 'Error generando el diseño');
+        console.error('[GeneratingStep] error:', err);
+        onError(err.message || 'Error generando el diseño. Intentá de nuevo.');
       }
     };
 
@@ -747,16 +706,8 @@ const GeneratingStep = ({ data, onDone, onError }) => {
         >
           <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white via-neutral-400 to-neutral-900 blur-2xl opacity-60" />
           <div className="absolute inset-4 rounded-full bg-gradient-to-tr from-neutral-100 to-neutral-700 blur-xl opacity-80" />
-          <motion.div
-            animate={{ rotate: -360 }}
-            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-            className="absolute inset-8 rounded-full border border-white/20"
-          />
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 14, repeat: Infinity, ease: 'linear' }}
-            className="absolute inset-12 rounded-full border border-white/30"
-          />
+          <motion.div animate={{ rotate: -360 }} transition={{ duration: 20, repeat: Infinity, ease: 'linear' }} className="absolute inset-8 rounded-full border border-white/20" />
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 14, repeat: Infinity, ease: 'linear' }} className="absolute inset-12 rounded-full border border-white/30" />
         </motion.div>
       </div>
 
@@ -780,11 +731,7 @@ const GeneratingStep = ({ data, onDone, onError }) => {
         </div>
 
         <div className="h-[2px] w-full bg-white/10 rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-white rounded-full"
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.3 }}
-          />
+          <motion.div className="h-full bg-white rounded-full" animate={{ width: `${progress}%` }} transition={{ duration: 0.3 }} />
         </div>
 
         <div className="mt-3 flex justify-between text-[10px] tracking-[0.25em] uppercase font-bold text-neutral-500">
@@ -802,9 +749,6 @@ const GeneratingStep = ({ data, onDone, onError }) => {
 const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
   const styleName = STYLES.find((s) => s.slug === data.style)?.name || '—';
 
-  // FIX: Resolver la URL de la imagen correctamente
-  // El PHP devuelve "imagen_generada" como data URL base64 — usamos eso directamente.
-  // Si por alguna razón viene como ruta relativa, la construimos con SERVER_BASE_URL.
   const imageSrc = resolveImageSrc(
     generated?.imagen_generada,
     generated?.imagen_url
@@ -826,7 +770,6 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
           <span className="italic font-serif font-light text-neutral-500">edición {styleName.toLowerCase()}.</span>
         </h1>
 
-        {/* Badge de especie/raza si el servidor lo devolvió */}
         {(generated?.especie || generated?.raza) && (
           <div className="mt-3 flex gap-2 flex-wrap">
             {generated.especie && generated.especie !== 'otro' && (
@@ -847,38 +790,37 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-        className="mt-6 w-full bg-neutral-100 rounded-3xl overflow-hidden relative"
+        className="mt-6 w-full bg-neutral-950 rounded-3xl overflow-hidden relative"
       >
-        {/* Contenedor de la imagen generada — ocupa todo el ancho disponible */}
-        <div className="w-full relative bg-neutral-950 rounded-3xl overflow-hidden">
-          {imageSrc ? (
-            <img
-              src={imageSrc}
-              alt={`Diseño de ${data.name}`}
-              className="w-full h-auto block"
-              style={{ minHeight: '300px', objectFit: 'contain' }}
-            />
-          ) : (
-            /* Placeholder si no hay imagen todavía */
-            <div className="aspect-square w-full flex items-center justify-center">
-              <div className="text-neutral-600 text-sm">Preparando imagen...</div>
+        {imageSrc ? (
+          <img
+            src={imageSrc}
+            alt={`Diseño de ${data.name}`}
+            className="w-full h-auto block"
+            onError={(e) => {
+              // Si falla la URL, intentar con data base64 si está disponible
+              console.error('Error cargando imagen desde URL, revisando fallback...');
+              e.target.style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className="aspect-square w-full flex items-center justify-center">
+            <div className="text-center p-8">
+              <div className="text-neutral-500 text-sm mb-2">No se pudo cargar la imagen.</div>
+              <div className="text-neutral-600 text-xs">El diseño fue generado pero no se pudo mostrar. Intentá regenerar.</div>
             </div>
-          )}
-
-          <div className="absolute top-4 left-4 bg-white/95 backdrop-blur rounded-full px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase">
-            Listo
           </div>
+        )}
 
-          {regenerating && (
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center rounded-3xl">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                className="w-10 h-10 border-2 border-white/30 border-t-white rounded-full"
-              />
-            </div>
-          )}
+        <div className="absolute top-4 left-4 bg-white/95 backdrop-blur rounded-full px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase">
+          Listo
         </div>
+
+        {regenerating && (
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center rounded-3xl">
+            <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-10 h-10 border-2 border-white/30 border-t-white rounded-full" />
+          </div>
+        )}
       </motion.div>
 
       <motion.div
@@ -889,12 +831,8 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
       >
         <div className="flex items-baseline justify-between">
           <div>
-            <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-neutral-500">
-              Remera oversized · Negra
-            </div>
-            <div className="text-3xl font-black mt-1">
-              ${PRICE.toLocaleString('es-AR')}
-            </div>
+            <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-neutral-500">Remera oversized · Negra</div>
+            <div className="text-3xl font-black mt-1">${PRICE.toLocaleString('es-AR')}</div>
           </div>
           <div className="text-right">
             <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-neutral-500">Talle</div>
@@ -910,9 +848,7 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
             { l: 'Envío',   v: '3 a 5 días' },
           ].map((d) => (
             <div key={d.l} className="p-4 bg-neutral-50 rounded-2xl">
-              <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-neutral-500">
-                {d.l}
-              </div>
+              <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-neutral-500">{d.l}</div>
               <div className="text-sm font-semibold mt-1">{d.v}</div>
             </div>
           ))}
@@ -946,8 +882,7 @@ const ErrorScreen = ({ message, onRetry, onClose }) => (
   <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6 text-center">
     <div className="w-16 h-16 rounded-full bg-neutral-900 flex items-center justify-center mb-6">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M12 8v4M12 16h.01" />
+        <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
       </svg>
     </div>
     <h2 className="text-2xl font-black tracking-tight mb-2">Algo falló.</h2>
@@ -955,16 +890,10 @@ const ErrorScreen = ({ message, onRetry, onClose }) => (
       {message || 'No pudimos generar tu diseño. Probemos otra vez.'}
     </p>
     <div className="flex gap-3 w-full max-w-xs">
-      <button
-        onClick={onClose}
-        className="flex-1 h-12 rounded-full border border-neutral-300 font-semibold text-sm"
-      >
+      <button onClick={onClose} className="flex-1 h-12 rounded-full border border-neutral-300 font-semibold text-sm">
         Cerrar
       </button>
-      <button
-        onClick={onRetry}
-        className="flex-1 h-12 rounded-full bg-neutral-900 text-white font-semibold text-sm"
-      >
+      <button onClick={onRetry} className="flex-1 h-12 rounded-full bg-neutral-900 text-white font-semibold text-sm">
         Reintentar
       </button>
     </div>
@@ -1030,9 +959,11 @@ const CreateFlow = ({ initialStyle = '', onClose = () => {} }) => {
     if (!generated?.id) return;
     setRegenerating(true);
     try {
-      const json = await apiRequest(`?recurso=regenerar&id=${generated.id}`, {
-        method: 'POST',
-      });
+      const json = await apiRequest(
+        `?recurso=regenerar&id=${generated.id}`,
+        { method: 'POST' },
+        GENERATION_TIMEOUT_MS
+      );
       setGenerated((g) => ({ ...g, ...json }));
     } catch (err) {
       setError(err.message);
