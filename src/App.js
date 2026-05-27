@@ -6,11 +6,8 @@ import { AnimatePresence } from "framer-motion";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
 import Home from "./pages/Home";
-import FAQ from "./pages/FAQ";
 import NotFound from "./pages/NotFound";
 
-import MainNavigation from "./layout/MainNavigation";
-import Footer from "./layout/Footer";
 
 import HomeRedirect from "./components/auth/HomeRedirect";
 import { AuthProvider } from "./components/context/AuthContext";
@@ -39,7 +36,7 @@ const App = () => {
           <Routes location={location} key={location.pathname}>
             <Route element={<HomeRedirect />}>
               <Route path="/" element={<Home />} />
-              <Route path="/FAQ" element={<FAQ />} />
+              <Route path="/crear" element={<CreateFlow />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
