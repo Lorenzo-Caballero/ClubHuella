@@ -1,13 +1,15 @@
 {
   "files": {
-    "main.css": "/static/css/main.a0b08796.css",
-    "main.js": "/static/js/main.0892af3d.js",
+    "main.css": "/static/css/main.392cd13a.css",
+    "main.js": "/static/js/main.96be6449.js",
+    "static/media/remeraNegra.png": "/static/media/remeraNegra.00bf43c6781133653e6a.png",
+    "static/media/remeraBlanca.png": "/static/media/remeraBlanca.9ee08e9a33e8f1c10cc2.png",
     "index.html": "/index.html",
-    "main.a0b08796.css.map": "/static/css/main.a0b08796.css.map",
-    "main.0892af3d.js.map": "/static/js/main.0892af3d.js.map"
+    "main.392cd13a.css.map": "/static/css/main.392cd13a.css.map",
+    "main.96be6449.js.map": "/static/js/main.96be6449.js.map"
   },
   "entrypoints": [
-    "static/css/main.a0b08796.css",
-    "static/js/main.0892af3d.js"
+    "static/css/main.392cd13a.css",
+    "static/js/main.96be6449.js"
   ]
 }
