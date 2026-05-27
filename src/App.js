@@ -39,7 +39,7 @@ const App = () => {
           <Routes location={location} key={location.pathname}>
             <Route element={<HomeRedirect />}>
               <Route path="/" element={<Home />} />
-              <Route path="/crear" element={<CreateFlow />} />
+              <Route path="/FAQ" element={<FAQ />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
