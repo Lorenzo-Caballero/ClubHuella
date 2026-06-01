@@ -33,29 +33,7 @@ const reveal = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
 };
 
-/* ============================================================
-   DATA
-   ============================================================ */
-const STYLE_PREVIEWS = [
-  { slug: 'vogue',      name: 'Vogue',      tag: 'Editorial', image: vogueImg },
-  { slug: 'streetwear', name: 'Street',     tag: 'Urbano',    image: streetImg },
-  { slug: 'rap-tee',    name: 'Retro',      tag: 'Bootleg',   image: retroImg },
-  { slug: 'retro',      name: 'Granulado',  tag: 'Riso',      image: granuladoImg },
-  { slug: 'collage',    name: 'Clean Look', tag: 'Mixtape',   image: cleanLookImg },
-  { slug: 'minimal',    name: 'Polaroid',   tag: 'Polaroid',  image: polaroidImg },
-];
 
-const STEPS = [
-  { n: '01', title: 'Elegí un estilo', desc: 'Vogue, retro, street… cada uno transforma a tu mascota distinto.' },
-  { n: '02', title: 'Subí una foto',   desc: 'Una foto clara de tu compañero. La IA hace el resto.' },
-  { n: '03', title: 'Vista previa',    desc: 'Mirás el diseño antes de pagar. Si no te enamora, no compras.' },
-];
-
-const NAV_LINKS = [
-  { label: 'Cómo funciona', href: '#como-funciona' },
-  { label: 'Estilos',       href: '#estilos' },
-  { label: 'Nuestra causa', href: '#causa' },
-];
 
 /* ============================================================
    HEADER  (menú hamburguesa funcional)
@@ -76,10 +54,8 @@ const Header = () => {
           onClick={() => setOpen(true)}
           className="md:hidden flex flex-col gap-1.5 p-2 -ml-2"
         >
-          <span className="block w-5 h-0.5 bg-neutral-900" />
-          <span className="block w-5 h-0.5 bg-neutral-900" />
-          <span className="block w-5 h-0.5 bg-neutral-900" />
-        </button>
+          ✦ Edición personalizada 
+        </motion.span>
 
         {/* Nav desktop */}
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-neutral-700">
@@ -485,23 +461,20 @@ const Footer = () => (
 /* ============================================================
    HOME
    ============================================================ */
-const Home = () => (
-  <motion.main
-    variants={containerVariants}
-    initial="hidden"
-    animate="visible"
-    exit="exit"
-    className="bg-[#FBF9F4] text-neutral-900 font-sans antialiased"
-  >
-    <Header />
-    <Hero />
-    <HowItWorks />
-    <StylesSection />
-    <Cause />
-    <Trust />
-    <FinalCTA />
-    <Footer />
-  </motion.main>
-);
+const Home = () => {
+  return (
+    <motion.main
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      className="bg-white text-neutral-900 font-sans antialiased"
+    >
+      <Hero />
+      <StylesPreview />
+      <FinalCTA />
+    </motion.main>
+  );
+};
 
 export default Home;
