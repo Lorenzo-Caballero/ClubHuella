@@ -1,9 +1,17 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 // Mockups de remeras — el bundler (Vite/Webpack) procesa estos imports
 import remeraBlancaImg from '../assets/remeraBlanca.png';
 import remeraNegraImg  from '../assets/remeraNegra.png';
+// Imagenes de ejemplo por estilo (drop en src/assets/styles/)
+import vogueImg     from '../assets/styles/vogue.jpg';
+import retroImg     from '../assets/styles/retro.jpg';        // galaxia/bootleg -> slug rap-tee
+import polaroidImg  from '../assets/styles/polaroid.jpg';     // -> slug minimal
+import granuladoImg from '../assets/styles/granulado.jpg';    // halftone -> slug retro
+import streetImg    from '../assets/styles/street.jpg';       // -> slug streetwear
+import cleanLookImg from '../assets/styles/clean-look.jpg';   // collage -> slug collage
 
 /* ============================================================
    CONFIG
@@ -31,14 +39,14 @@ const STEPS = [
 ];
 
 const STYLES = [
-  { slug: 'vogue',       name: 'Vogue',       tag: 'Editorial',  desc: 'Portada de revista. Limpio, tipográfico.' },
-  { slug: 'retro',       name: 'Retro',       tag: '90s',        desc: 'Colores lavados, energía vintage.' },
-  { slug: 'streetwear',  name: 'Streetwear',  tag: 'Urbano',     desc: 'Tipografías gruesas, actitud.' },
-  { slug: 'college',     name: 'College',     tag: 'Varsity',    desc: 'Arcos, año de fundación.' },
-  { slug: 'collage',     name: 'Collage',     tag: 'Mixed',      desc: 'Múltiples tomas, recortes, capas.' },
-  { slug: 'minimal',     name: 'Minimal',     tag: 'Línea',      desc: 'Un trazo. Cero ruido.' },
-  { slug: 'anime',       name: 'Anime',       tag: 'Kawaii',     desc: 'Ilustración japonesa.' },
-  { slug: 'rap-tee',     name: 'Rap Tee',     tag: 'Bootleg',    desc: 'Bordes ardientes. 90s.' },
+  { slug: 'vogue',       name: 'Vogue',      tag: 'Editorial',  desc: 'Portada de revista de lujo.',   image: vogueImg },
+  { slug: 'retro',       name: 'Granulado',  tag: 'Riso',       desc: 'Halftone granulado a un color.', image: granuladoImg },
+  { slug: 'streetwear',  name: 'Street',     tag: 'Urbano',     desc: 'Calle, polaroids, actitud.',    image: streetImg },
+  { slug: 'college',     name: 'College',    tag: 'Varsity',    desc: 'Arcos, año de fundación.',      fallback: 'bg-gradient-to-br from-amber-50 to-stone-200' },
+  { slug: 'collage',     name: 'Clean Look', tag: 'Mixtape',    desc: 'Recortes, capas, playlist.',    image: cleanLookImg },
+  { slug: 'minimal',     name: 'Polaroid',   tag: 'Polaroid',   desc: 'Una foto. Cero ruido.',         image: polaroidImg },
+  { slug: 'anime',       name: 'Anime',      tag: 'Kawaii',     desc: 'Ilustración japonesa.',         fallback: 'bg-gradient-to-br from-rose-100 to-sky-100' },
+  { slug: 'rap-tee',     name: 'Retro',      tag: 'Bootleg',    desc: 'Galaxia, rayos, vibra 90s.',    image: retroImg },
 ];
 
 const COLORS = [
@@ -391,17 +399,24 @@ const StyleStep = ({ value, onChange, onNext }) => (
                 : 'border-neutral-200 hover:border-neutral-400'
             }`}
           >
-            <div className="aspect-[4/5] bg-white relative overflow-hidden">
-              <div className="absolute inset-4 bg-white border border-neutral-200 rounded-xl flex flex-col items-center justify-center shadow-sm">
-                <span className="text-neutral-900 text-[10px] tracking-[0.28em] uppercase font-black">
-                  {s.name}
-                </span>
-                <span className="mt-2 w-10 h-[1px] bg-neutral-300" />
-                <span className="mt-2 text-neutral-400 text-[8px] tracking-[0.25em] uppercase font-bold">
-                  Pet Edition
-                </span>
-              </div>
-              <div className="absolute top-3 left-3 bg-neutral-900 text-white px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase">
+                        <div className="aspect-[4/5] relative overflow-hidden bg-neutral-100">
+              {s.image ? (
+                <img
+                  src={s.image}
+                  alt={`Estilo ${s.name}`}
+                  loading="lazy"
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                />
+              ) : (
+                <div className={`absolute inset-0 flex flex-col items-center justify-center ${s.fallback || 'bg-gradient-to-br from-neutral-200 to-neutral-300'}`}>
+                  <span className="text-neutral-700 text-sm tracking-[0.2em] uppercase font-black">{s.name}</span>
+                  <span className="mt-1.5 text-neutral-500 text-[8px] tracking-[0.25em] uppercase font-bold">Ejemplo pronto</span>
+                </div>
+              )}
+
+              <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/25 to-transparent pointer-events-none" />
+
+              <div className="absolute top-3 left-3 bg-neutral-900/90 backdrop-blur text-white px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase">
                 {s.tag}
               </div>
               {active && (
@@ -1221,11 +1236,15 @@ const slideVariants = {
   exit:   (dir) => ({ opacity: 0, x: dir > 0 ? -40 : 40, transition: { duration: 0.3 } }),
 };
 
-const CreateFlow = ({ initialStyle = '', onClose = () => {} }) => {
+const CreateFlow = ({ initialStyle = '' }) => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const goHome = useCallback(() => navigate('/'), [navigate]);
+
   const [stepIndex, setStepIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [data, setData] = useState({
-    style: initialStyle,
+    style: initialStyle || searchParams.get('estilo') || '',
     name:  '',
     color: '',
     size:  '',
@@ -1252,9 +1271,9 @@ const CreateFlow = ({ initialStyle = '', onClose = () => {} }) => {
       setDirection(-1);
       setStepIndex((s) => s - 1);
     } else {
-      onClose();
+      goHome();
     }
-  }, [stepIndex, onClose]);
+  }, [stepIndex, goHome]);
 
   const update = (key) => (value) => setData((d) => ({ ...d, [key]: value }));
 
@@ -1295,7 +1314,7 @@ const CreateFlow = ({ initialStyle = '', onClose = () => {} }) => {
 
   const screen = useMemo(() => {
     if (error) {
-      return <ErrorScreen message={error} onRetry={handleRetry} onClose={onClose} />;
+      return <ErrorScreen message={error} onRetry={handleRetry} onClose={goHome} />;
     }
 
     switch (currentStep) {
@@ -1319,14 +1338,14 @@ const CreateFlow = ({ initialStyle = '', onClose = () => {} }) => {
             data={data}
             generated={generated}
             onRegenerate={handleRegenerate}
-            onBuy={onClose}
+            onBuy={goHome}
             regenerating={regenerating}
           />
         );
       default:
         return null;
     }
-  }, [currentStep, data, generated, error, regenerating, nextStep, goTo, onClose, handleGenerated, handleError, handleRegenerate]);
+  }, [currentStep, data, generated, error, regenerating, nextStep, goTo, goHome, handleGenerated, handleError, handleRegenerate]);
 
   return (
     <div className="min-h-[100dvh] bg-white text-neutral-900 font-sans antialiased">
@@ -1335,7 +1354,7 @@ const CreateFlow = ({ initialStyle = '', onClose = () => {} }) => {
           current={stepIndex}
           total={STEPS.length}
           onBack={prevStep}
-          onClose={onClose}
+          onClose={goHome}
         />
       )}
 
