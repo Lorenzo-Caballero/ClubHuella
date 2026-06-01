@@ -952,7 +952,7 @@ const GeneratingStep = ({ data, onDone, onError }) => {
       <div className="p-6 sm:p-8 pb-10 sm:pb-12 max-w-md mx-auto w-full relative">
         <div className="mb-6 min-h-[90px] sm:min-h-[100px]">
           <div className="text-[10px] font-bold tracking-[0.3em] uppercase text-neutral-400 mb-3">
-            ✦
+            ✦ 
           </div>
           <AnimatePresence mode="wait">
             <motion.h2
