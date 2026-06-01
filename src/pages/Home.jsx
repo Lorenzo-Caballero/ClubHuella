@@ -29,29 +29,7 @@ const PREVIEW_STYLES = [
   { slug: 'minimal',    name: 'Minimal',    tag: 'Línea' },
 ];
 
-/* ============================================================
-   HEADER
-   ============================================================ */
-const Header = () => (
-  <header className="sticky top-0 z-50 bg-white/85 backdrop-blur-md border-b border-neutral-100">
-    <div className="max-w-7xl mx-auto px-5 md:px-8 h-16 flex items-center justify-between">
-      <button aria-label="Menú" className="md:hidden flex flex-col gap-1.5 p-2 -ml-2">
-        <span className="block w-5 h-0.5 bg-neutral-900" />
-        <span className="block w-5 h-0.5 bg-neutral-900" />
-        <span className="block w-5 h-0.5 bg-neutral-900" />
-      </button>
-      <a href="/" className="absolute left-1/2 -translate-x-1/2 font-black tracking-[0.2em] text-lg">
-        PETTEE<span className="text-neutral-400">.</span>
-      </a>
-      <a href="/carrito" aria-label="Carrito" className="relative p-2 -mr-2">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M6 7h12l-1.2 10.4a2 2 0 0 1-2 1.6H9.2a2 2 0 0 1-2-1.6L6 7Z" />
-          <path d="M9 7a3 3 0 1 1 6 0" />
-        </svg>
-      </a>
-    </div>
-  </header>
-);
+
 
 /* ============================================================
    HERO
@@ -65,7 +43,7 @@ const Hero = () => (
           custom={0}
           className="block text-[11px] font-bold tracking-[0.3em] uppercase text-neutral-500 mb-5"
         >
-          ✦ Edición personalizada con IA
+          ✦ Edición personalizada 
         </motion.span>
 
         <motion.h1
@@ -206,7 +184,6 @@ const Home = () => {
       exit="exit"
       className="bg-white text-neutral-900 font-sans antialiased"
     >
-      <Header />
       <Hero />
       <StylesPreview />
       <FinalCTA />

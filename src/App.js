@@ -7,8 +7,8 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 
 import Home from "./pages/Home";
 import NotFound from "./pages/NotFound";
-
-
+import Navbar from "./pages/Navbar";
+import Footer from "./pages/Footer";
 import HomeRedirect from "./components/auth/HomeRedirect";
 import { AuthProvider } from "./components/context/AuthContext";
 import CreateFlow from "./pages/CreateFlow";
@@ -28,9 +28,11 @@ const App = () => {
   }, [dispatch]);
 
   return (
+    <>
     <GoogleOAuthProvider clientId={clientID}>
       <AuthProvider>
        
+      <Navbar/>
 
         <AnimatePresence exitBeforeEnter>
           <Routes location={location} key={location.pathname}>
@@ -42,10 +44,12 @@ const App = () => {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AnimatePresence>
+        <Footer/>
 
   
       </AuthProvider>
     </GoogleOAuthProvider>
+    </>
   );
 };
 
