@@ -1,14 +1,12 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
-import { getProducts } from "./store/actions/products-actions";
 import { AnimatePresence } from "framer-motion";
-import { GoogleOAuthProvider } from "@react-oauth/google";
 
 import Home from "./pages/Home";
+import CreateFlow from "./pages/CreateFlow";
 import NotFound from "./pages/NotFound";
-import Navbar from "./pages/Navbar";
-import Footer from "./pages/Footer";
+
+
 import HomeRedirect from "./components/auth/HomeRedirect";
 import { AuthProvider } from "./components/context/AuthContext";
 import CreateFlow from "./pages/CreateFlow";
@@ -19,20 +17,12 @@ const clientID =
   "417226731712-f3l82nhqgsmcla4hu7ooamsk63cqi5vt.apps.googleusercontent.com";
 
 const App = () => {
-  const dispatch = useDispatch();
   const location = useLocation();
-  const isAdmin = useSelector((state) => state.auth.isAdmin);
-
-  useEffect(() => {
-    dispatch(getProducts());
-  }, [dispatch]);
 
   return (
-    <>
     <GoogleOAuthProvider clientId={clientID}>
       <AuthProvider>
        
-      <Navbar/>
 
         <AnimatePresence exitBeforeEnter>
           <Routes location={location} key={location.pathname}>
@@ -44,12 +34,10 @@ const App = () => {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AnimatePresence>
-        <Footer/>
 
   
       </AuthProvider>
     </GoogleOAuthProvider>
-    </>
   );
 };
 
