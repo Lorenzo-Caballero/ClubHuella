@@ -14,8 +14,8 @@ import streetImg    from '../assets/styles/street.jpg';       // -> slug streetw
 import cleanLookImg from '../assets/styles/clean-look.jpg';   // collage -> slug collage
 
 // ── Nuevos steps modulares ─────────────────────────────────
-import ShippingStep from './ShippingStep';
-import PaymentStep  from './PaymentStep';
+import ShippingStep from './stepsComponents/ShippingStep';
+import PaymentStep  from './stepsComponents/PaymentStep';
 
 /* ============================================================
    CONFIG
