@@ -13,6 +13,10 @@ import granuladoImg from '../assets/styles/granulado.jpg';    // halftone -> slu
 import streetImg    from '../assets/styles/street.jpg';       // -> slug streetwear
 import cleanLookImg from '../assets/styles/clean-look.jpg';   // collage -> slug collage
 
+// ── Nuevos steps modulares ─────────────────────────────────
+import ShippingStep from './ShippingStep';
+import PaymentStep  from './PaymentStep';
+
 /* ============================================================
    CONFIG
    ============================================================ */
@@ -27,26 +31,32 @@ const TSHIRT_MOCKUPS = {
   negra:  remeraNegraImg,
 };
 
+// ── STEPS — se agregan shipping y payment al final ─────────
 const STEPS = [
-  { id: 'style',      label: 'Estilo' },
-  { id: 'name',       label: 'Nombre' },
-  { id: 'color',      label: 'Color' },
-  { id: 'size',       label: 'Talle' },
-  { id: 'upload',     label: 'Foto' },
-  { id: 'summary',    label: 'Resumen' },
-  { id: 'generating', label: 'Generando' },
-  { id: 'result',     label: 'Resultado' },
+  { id: 'style',      label: 'Estilo' },     // 0
+  { id: 'name',       label: 'Nombre' },     // 1
+  { id: 'color',      label: 'Color' },      // 2
+  { id: 'size',       label: 'Talle' },      // 3
+  { id: 'upload',     label: 'Foto' },       // 4
+  { id: 'summary',    label: 'Resumen' },    // 5
+  { id: 'generating', label: 'Generando' },  // 6
+  { id: 'result',     label: 'Resultado' },  // 7
+  { id: 'shipping',   label: 'Envío' },      // 8
+  { id: 'payment',    label: 'Pago' },       // 9
 ];
 
+// mapa id → índice para navegación explícita
+const IDX = Object.fromEntries(STEPS.map((s, i) => [s.id, i]));
+
 const STYLES = [
-  { slug: 'vogue',       name: 'Vogue',      tag: 'Editorial',  desc: 'Portada de revista de lujo.',   image: vogueImg },
-  { slug: 'retro',       name: 'Granulado',  tag: 'Riso',       desc: 'Halftone granulado a un color.', image: granuladoImg },
-  { slug: 'streetwear',  name: 'Street',     tag: 'Urbano',     desc: 'Calle, polaroids, actitud.',    image: streetImg },
-  { slug: 'college',     name: 'College',    tag: 'Varsity',    desc: 'Arcos, año de fundación.',      fallback: 'bg-gradient-to-br from-amber-50 to-stone-200' },
-  { slug: 'collage',     name: 'Clean Look', tag: 'Mixtape',    desc: 'Recortes, capas, playlist.',    image: cleanLookImg },
-  { slug: 'minimal',     name: 'Polaroid',   tag: 'Polaroid',   desc: 'Una foto. Cero ruido.',         image: polaroidImg },
-  { slug: 'anime',       name: 'Anime',      tag: 'Kawaii',     desc: 'Ilustración japonesa.',         fallback: 'bg-gradient-to-br from-rose-100 to-sky-100' },
-  { slug: 'rap-tee',     name: 'Retro',      tag: 'Bootleg',    desc: 'Galaxia, rayos, vibra 90s.',    image: retroImg },
+  { slug: 'vogue',       name: 'Vogue',      tag: 'Editorial',  desc: 'Portada de revista de lujo.',    image: vogueImg },
+  { slug: 'retro',       name: 'Granulado',  tag: 'Riso',       desc: 'Halftone granulado a un color.',  image: granuladoImg },
+  { slug: 'streetwear',  name: 'Street',     tag: 'Urbano',     desc: 'Calle, polaroids, actitud.',      image: streetImg },
+  { slug: 'college',     name: 'College',    tag: 'Varsity',    desc: 'Arcos, año de fundación.',        fallback: 'bg-gradient-to-br from-amber-50 to-stone-200' },
+  { slug: 'collage',     name: 'Clean Look', tag: 'Mixtape',    desc: 'Recortes, capas, playlist.',      image: cleanLookImg },
+  { slug: 'minimal',     name: 'Polaroid',   tag: 'Polaroid',   desc: 'Una foto. Cero ruido.',           image: polaroidImg },
+  { slug: 'anime',       name: 'Anime',      tag: 'Kawaii',     desc: 'Ilustración japonesa.',           fallback: 'bg-gradient-to-br from-rose-100 to-sky-100' },
+  { slug: 'rap-tee',     name: 'Retro',      tag: 'Bootleg',    desc: 'Galaxia, rayos, vibra 90s.',      image: retroImg },
 ];
 
 const COLORS = [
@@ -758,11 +768,11 @@ const SummaryStep = ({ data, onNext, onEdit }) => {
   const colorName = COLORS.find((c) => c.id === data.color)?.name || '—';
 
   const rows = [
-    { label: 'Estilo',  value: styleName,                step: 0 },
-    { label: 'Nombre',  value: data.name,                step: 1 },
-    { label: 'Color',   value: colorName,                step: 2 },
-    { label: 'Talle',   value: data.size,                step: 3 },
-    { label: 'Foto',    value: data.photo?.name || '—',  step: 4 },
+    { label: 'Estilo',  value: styleName,                step: IDX.style  },
+    { label: 'Nombre',  value: data.name,                step: IDX.name   },
+    { label: 'Color',   value: colorName,                step: IDX.color  },
+    { label: 'Talle',   value: data.size,                step: IDX.size   },
+    { label: 'Foto',    value: data.photo?.name || '—',  step: IDX.upload },
   ];
 
   return (
@@ -1189,7 +1199,7 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
         </motion.div>
       </div>
 
-      {/* CTA fijo abajo */}
+      {/* CTA fijo abajo — va a ShippingStep */}
       <div className="fixed bottom-0 inset-x-0 p-5 bg-gradient-to-t from-white via-white to-white/80 backdrop-blur z-30">
         <div className="max-w-2xl mx-auto">
           <PrimaryButton onClick={onBuy}>
@@ -1241,17 +1251,18 @@ const CreateFlow = ({ initialStyle = '' }) => {
   const [searchParams] = useSearchParams();
   const goHome = useCallback(() => navigate('/'), [navigate]);
 
-  const [stepIndex, setStepIndex] = useState(0);
-  const [direction, setDirection] = useState(1);
-  const [data, setData] = useState({
+  const [stepIndex,    setStepIndex]    = useState(0);
+  const [direction,    setDirection]    = useState(1);
+  const [data,         setData]         = useState({
     style: initialStyle || searchParams.get('estilo') || '',
     name:  '',
     color: '',
     size:  '',
     photo: null,
   });
-  const [generated, setGenerated] = useState(null);
-  const [error, setError] = useState(null);
+  const [generated,    setGenerated]    = useState(null);
+  const [shippingData, setShippingData] = useState(null);  // ← nuevo
+  const [error,        setError]        = useState(null);
   const [regenerating, setRegenerating] = useState(false);
 
   const goTo = useCallback((i) => {
@@ -1280,7 +1291,7 @@ const CreateFlow = ({ initialStyle = '' }) => {
   const handleGenerated = useCallback((result) => {
     setGenerated(result);
     setDirection(1);
-    setStepIndex(STEPS.findIndex((s) => s.id === 'result'));
+    setStepIndex(IDX.result);
   }, []);
 
   const handleError = useCallback((msg) => {
@@ -1304,13 +1315,22 @@ const CreateFlow = ({ initialStyle = '' }) => {
     }
   }, [generated]);
 
+  // ── nuevo: ShippingStep llama onNext con los datos de envío ──
+  const handleShippingDone = useCallback((sData) => {
+    setShippingData(sData);
+    setDirection(1);
+    setStepIndex(IDX.payment);
+  }, []);
+
   const handleRetry = () => {
     setError(null);
-    setStepIndex(STEPS.findIndex((s) => s.id === 'summary'));
+    setStepIndex(IDX.summary);
   };
 
   const currentStep = STEPS[stepIndex].id;
-  const showProgress = currentStep !== 'generating' && currentStep !== 'result' && !error;
+
+  // Ocultar barra en steps que tienen layout propio de pantalla completa
+  const showProgress = !['generating', 'result', 'shipping', 'payment'].includes(currentStep) && !error;
 
   const screen = useMemo(() => {
     if (error) {
@@ -1338,14 +1358,36 @@ const CreateFlow = ({ initialStyle = '' }) => {
             data={data}
             generated={generated}
             onRegenerate={handleRegenerate}
-            onBuy={goHome}
+            onBuy={() => goTo(IDX.shipping)}   // ← va a shipping, no a goHome
             regenerating={regenerating}
+          />
+        );
+      case 'shipping':
+        return (
+          <ShippingStep
+            data={data}
+            generated={generated}
+            onNext={handleShippingDone}
+            onBack={() => goTo(IDX.result)}
+          />
+        );
+      case 'payment':
+        return (
+          <PaymentStep
+            data={data}
+            generated={generated}
+            shippingData={shippingData}
+            onBack={() => goTo(IDX.shipping)}
           />
         );
       default:
         return null;
     }
-  }, [currentStep, data, generated, error, regenerating, nextStep, goTo, goHome, handleGenerated, handleError, handleRegenerate]);
+  }, [
+    currentStep, data, generated, shippingData, error, regenerating,
+    nextStep, goTo, goHome,
+    handleGenerated, handleError, handleRegenerate, handleShippingDone,
+  ]);
 
   return (
     <div className="min-h-[100dvh] bg-white text-neutral-900 font-sans antialiased">

@@ -1,15 +1,22 @@
 {
   "files": {
-    "main.css": "/static/css/main.392cd13a.css",
-    "main.js": "/static/js/main.96be6449.js",
+    "main.css": "/static/css/main.bba5a0a4.css",
+    "main.js": "/static/js/main.a2f54a04.js",
+    "static/media/granulado.jpg": "/static/media/granulado.fc1f3f49cb1cffd3bb99.jpg",
+    "static/media/retro.jpg": "/static/media/retro.234efc05ae89cfab0bc7.jpg",
+    "static/media/vogue.jpg": "/static/media/vogue.979d556a0d2fd6a146cd.jpg",
+    "static/media/street.jpg": "/static/media/street.9e964ddef37bd839b226.jpg",
+    "static/media/polaroid.jpg": "/static/media/polaroid.557bd54061fc8ae3e29f.jpg",
+    "static/media/clean-look.jpg": "/static/media/clean-look.2eb6b161a39c1b06be55.jpg",
+    "static/media/hero-modelo.jpg": "/static/media/hero-modelo.da2dc7c5f42033d73d57.jpg",
     "static/media/remeraNegra.png": "/static/media/remeraNegra.00bf43c6781133653e6a.png",
     "static/media/remeraBlanca.png": "/static/media/remeraBlanca.9ee08e9a33e8f1c10cc2.png",
     "index.html": "/index.html",
-    "main.392cd13a.css.map": "/static/css/main.392cd13a.css.map",
-    "main.96be6449.js.map": "/static/js/main.96be6449.js.map"
+    "main.bba5a0a4.css.map": "/static/css/main.bba5a0a4.css.map",
+    "main.a2f54a04.js.map": "/static/js/main.a2f54a04.js.map"
   },
   "entrypoints": [
-    "static/css/main.392cd13a.css",
-    "static/js/main.96be6449.js"
+    "static/css/main.bba5a0a4.css",
+    "static/js/main.a2f54a04.js"
   ]
 }
