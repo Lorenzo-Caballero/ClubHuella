@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 
-const API = "https://clubhuella.com/backend/api/pedidos.php";
+const API = "https://clubhuella.com/payments_envios.php";
 
 const ESTADOS = [
   { value: "pendiente",      label: "Pendiente",       color: "bg-gray-400" },
@@ -20,6 +20,50 @@ const EMPTY_FORM = {
   tracking_number: "", tracking_url: "",
   imagen_url: "", mp_payment_id: "", diseno_id: "",
 };
+
+/* Helper central para todas las llamadas a la API.
+   Lanza error si la respuesta no es JSON válido (evita el
+   "Unexpected token '<'" cuando el server devuelve HTML de error). */
+async function apiCall(url, options = {}) {
+  const res = await fetch(url, options);
+  const raw = await res.text();
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      `Respuesta no válida del servidor (status ${res.status}). ` +
+      `Revisá que la acción exista en payments_envios.php.`
+    );
+  }
+
+  if (!res.ok || data?.ok === false) {
+    throw new Error(data?.error || `Error ${res.status}`);
+  }
+  return data;
+}
+
+/* Descarga una imagen forzando el diálogo de "Guardar como", incluso
+   siendo de otro dominio. Si el fetch falla (ej. bloqueado por CORS),
+   hace fallback abriendo la imagen en una pestaña nueva. */
+async function downloadImage(url, filename) {
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) throw new Error("No se pudo descargar");
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
 
 function estadoBadge(estado) {
   const e = ESTADOS.find((x) => x.value === estado) ?? ESTADOS[0];
@@ -52,15 +96,16 @@ function PedidoModal({ pedido, onClose, onSaved }) {
     setLoading(true);
     setError("");
     try {
-      const url  = isEdit ? `${API}?id=${pedido.id}` : API;
-      const method = isEdit ? "PUT" : "POST";
-      const res  = await fetch(url, {
-        method,
+      const action = isEdit ? "actualizar" : "crear";
+      const url = isEdit
+        ? `${API}?action=${action}&id=${pedido.id}`
+        : `${API}?action=${action}`;
+
+      await apiCall(url, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al guardar");
       onSaved();
     } catch (err) {
       setError(err.message);
@@ -104,6 +149,35 @@ function PedidoModal({ pedido, onClose, onSaved }) {
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
         </div>
+
+        {(form.imagen_url_completa || form.imagen_url) && (
+          <div className="px-6 pt-4 relative">
+            <img
+              src={form.imagen_url_completa || form.imagen_url}
+              alt={`Diseño de ${form.nombre_mascota || "mascota"}`}
+              className="w-full max-h-64 object-contain rounded-xl border border-[#2a2f3a] bg-[#0f1115]"
+              onError={(e) => { e.currentTarget.style.display = "none"; }}
+            />
+            <button
+              type="button"
+              onClick={() =>
+                downloadImage(
+                  form.imagen_url_completa || form.imagen_url,
+                  `diseno_${form.nombre_mascota || form.id || "pedido"}.jpg`
+                )
+              }
+              className="absolute top-6 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-black/70 backdrop-blur text-white hover:bg-black/90 transition"
+              title="Descargar imagen"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Descargar
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           {field("Mascota", "nombre_mascota")}
@@ -186,10 +260,8 @@ export default function PedidosAdmin() {
     setLoading(true);
     setError("");
     try {
-      const res  = await fetch(API);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al cargar");
-      setPedidos(data);
+      const data = await apiCall(`${API}?action=listar`);
+      setPedidos(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -201,9 +273,7 @@ export default function PedidosAdmin() {
 
   async function handleDelete(id) {
     try {
-      const res  = await fetch(`${API}?id=${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      await apiCall(`${API}?action=eliminar&id=${id}`, { method: "POST" });
       setDeleting(null);
       fetchPedidos();
     } catch (err) {
@@ -255,7 +325,7 @@ export default function PedidosAdmin() {
             <table className="w-full text-sm">
               <thead className="bg-[#171a21] text-gray-400 text-xs uppercase tracking-wider">
                 <tr>
-                  {["#", "Mascota", "Cliente", "Estado", "Total", "Entrega", "Fecha", "Acciones"].map((h) => (
+                  {["#", "Diseño", "Mascota", "Cliente", "Estado", "Total", "Entrega", "Fecha", "Acciones"].map((h) => (
                     <th key={h} className="px-4 py-3 text-left font-semibold whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -264,6 +334,41 @@ export default function PedidosAdmin() {
                 {pedidos.map((p) => (
                   <tr key={p.id} className="bg-[#171a21] hover:bg-[#1e222b] transition">
                     <td className="px-4 py-3 text-gray-400">{p.id}</td>
+                    <td className="px-4 py-3">
+                      {p.imagen_url_completa ? (
+                        <div className="relative w-12 h-12 group">
+                          <img
+                            src={p.imagen_url_completa}
+                            alt={`Diseño de ${p.nombre_mascota || "mascota"}`}
+                            className="w-12 h-12 object-cover rounded-lg border border-[#2a2f3a] cursor-pointer transition-transform group-hover:scale-150 group-hover:z-10"
+                            onClick={() => setModal(p)}
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              downloadImage(
+                                p.imagen_url_completa,
+                                `diseno_${p.nombre_mascota || p.id}.jpg`
+                              );
+                            }}
+                            className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-yellow-400 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-20"
+                            title="Descargar imagen"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="7 10 12 15 17 10" />
+                              <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg border border-dashed border-[#2a2f3a] flex items-center justify-center text-[10px] text-gray-600">
+                          sin img
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-medium text-white whitespace-nowrap">
                       {p.nombre_mascota || "—"}
                       <div className="text-xs text-yellow-400 font-normal">

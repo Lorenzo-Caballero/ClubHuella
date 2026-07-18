@@ -15,7 +15,7 @@ const App = () => {
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Home />} />
         <Route path="/crear" element={<CreateFlow />} />
-        <Route path="/admin/pedidos" element={<PedidosAdmin />} />
+        <Route path="/admin-pedidos" element={<PedidosAdmin />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
