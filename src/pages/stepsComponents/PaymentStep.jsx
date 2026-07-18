@@ -88,7 +88,7 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
   const colorName = COLORS_MAP[data?.color]  || data?.color  || '—';
   const isPickup  = shippingData?.type === 'tienda';
   const shipCost  = shippingData?.cost  ?? 0;
-  const total     = shippingData?.total ?? 42990;
+  const total     = shippingData?.total ?? 100;
   const designSrc = resolveDesignSrc(generated);
 
   const addressLine = isPickup
@@ -123,7 +123,7 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
         talle:          data?.size  ?? '',
         imagen_url:     generated?.imagen_url ?? '',
         diseno_id:      generated?.id ?? '',
-        precio_remera:  42990,
+        precio_remera:  100, // ⚠️ TEST — revertir a 42990
         precio_envio:   shipCost,
         total,
         tipo_entrega:   shippingData.type,
@@ -207,7 +207,7 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
               </div>
             </div>
             <div className="font-semibold text-sm flex-shrink-0">
-              $42.990
+              $100
             </div>
           </div>
 

@@ -1,23 +1,25 @@
 {
   "files": {
-    "main.css": "/static/css/main.8726bb0b.css",
-    "main.js": "/static/js/main.b82748d1.js",
+    "main.css": "/static/css/main.b472db38.css",
+    "main.js": "/static/js/main.25694e57.js",
     "static/media/granulado.jpg": "/static/media/granulado.fc1f3f49cb1cffd3bb99.jpg",
     "static/media/retro.jpg": "/static/media/retro.234efc05ae89cfab0bc7.jpg",
     "static/media/vogue.jpg": "/static/media/vogue.979d556a0d2fd6a146cd.jpg",
     "static/media/street.jpg": "/static/media/street.9e964ddef37bd839b226.jpg",
     "static/media/polaroid.jpg": "/static/media/polaroid.557bd54061fc8ae3e29f.jpg",
     "static/media/clean-look.jpg": "/static/media/clean-look.2eb6b161a39c1b06be55.jpg",
-    "static/media/hero-modelo.jpg": "/static/media/hero-modelo.da2dc7c5f42033d73d57.jpg",
-    "static/media/remeraNegra.png": "/static/media/remeraNegra.00bf43c6781133653e6a.png",
-    "static/media/remeraBlanca.png": "/static/media/remeraBlanca.9ee08e9a33e8f1c10cc2.png",
+    "static/media/tee_blanca_lisa.png": "/static/media/tee_blanca_lisa.f48126f14b7ab4adaece.png",
+    "static/media/refugio-1.jpg": "/static/media/refugio-1.693c8537c8e733a21323.jpg",
+    "static/media/tee_negra_lisa.png": "/static/media/tee_negra_lisa.c6722b7ae8e786fc9870.png",
+    "static/media/hero-cliente.jpg": "/static/media/hero-cliente.edcf878a401ccc6bf0f2.jpg",
+    "static/media/sin-editar.jpg": "/static/media/sin-editar.8b78c6b954d4edee92b0.jpg",
     "static/media/MercadoLogo.png": "/static/media/MercadoLogo.b804a12e0ed2f04249d1.png",
     "index.html": "/index.html",
-    "main.8726bb0b.css.map": "/static/css/main.8726bb0b.css.map",
-    "main.b82748d1.js.map": "/static/js/main.b82748d1.js.map"
+    "main.b472db38.css.map": "/static/css/main.b472db38.css.map",
+    "main.25694e57.js.map": "/static/js/main.25694e57.js.map"
   },
   "entrypoints": [
-    "static/css/main.8726bb0b.css",
-    "static/js/main.b82748d1.js"
+    "static/css/main.b472db38.css",
+    "static/js/main.25694e57.js"
   ]
 }

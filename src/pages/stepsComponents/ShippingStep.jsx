@@ -24,7 +24,7 @@ import { MdOutlineStorefront } from 'react-icons/md';
      onBack       → fn() — vuelve al ResultStep
    ============================================================ */
 
-const PRICE_TSHIRT = 42990;
+const PRICE_TSHIRT = 100; // ⚠️ TEST — revertir a 42990
 const RATE_URL     = 'https://clubhuella.com/payments_envios.php?action=rate';
 
 /* ── UI Primitives ─────────────────────────────────────────── */

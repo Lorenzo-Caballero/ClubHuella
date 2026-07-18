@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 // Mockups de remeras — el bundler (Vite/Webpack) procesa estos imports
-import remeraBlancaImg from '../assets/remeraBlanca.png';
-import remeraNegraImg  from '../assets/remeraNegra.png';
+import sinEditarImg from '../assets/styles/sin-editar.jpg';
+import teeBlancaImg from '../assets/tee_blanca_lisa.png';
+import teeNegraImg  from '../assets/tee_negra_lisa.png';
 // Imagenes de ejemplo por estilo (drop en src/assets/styles/)
 import vogueImg     from '../assets/styles/vogue.jpg';
 import retroImg     from '../assets/styles/retro.jpg';        // galaxia/bootleg -> slug rap-tee
@@ -26,9 +27,9 @@ const SERVER_BASE_URL = 'https://clubhuella.com';
 
 const GENERATION_TIMEOUT_MS = 150_000;
 
-const TSHIRT_MOCKUPS = {
-  blanca: remeraBlancaImg,
-  negra:  remeraNegraImg,
+const TSHIRT_PHOTOS = {
+  blanca: teeBlancaImg,
+  negra:  teeNegraImg,
 };
 
 // ── STEPS — se agregan shipping y payment al final ─────────
@@ -52,10 +53,9 @@ const STYLES = [
   { slug: 'vogue',       name: 'Vogue',      tag: 'Editorial',  desc: 'Portada de revista de lujo.',    image: vogueImg },
   { slug: 'retro',       name: 'Granulado',  tag: 'Riso',       desc: 'Halftone granulado a un color.',  image: granuladoImg },
   { slug: 'streetwear',  name: 'Street',     tag: 'Urbano',     desc: 'Calle, polaroids, actitud.',      image: streetImg },
-  { slug: 'college',     name: 'College',    tag: 'Varsity',    desc: 'Arcos, año de fundación.',        fallback: 'bg-gradient-to-br from-amber-50 to-stone-200' },
+  { slug: 'no-edit',     name: 'Sin editar', tag: 'Tu diseño',  desc: 'Subí tu diseño y lo estampamos tal cual.', image: sinEditarImg },
   { slug: 'collage',     name: 'Clean Look', tag: 'Mixtape',    desc: 'Recortes, capas, playlist.',      image: cleanLookImg },
   { slug: 'minimal',     name: 'Polaroid',   tag: 'Polaroid',   desc: 'Una foto. Cero ruido.',           image: polaroidImg },
-  { slug: 'anime',       name: 'Anime',      tag: 'Kawaii',     desc: 'Ilustración japonesa.',           fallback: 'bg-gradient-to-br from-rose-100 to-sky-100' },
   { slug: 'rap-tee',     name: 'Retro',      tag: 'Bootleg',    desc: 'Galaxia, rayos, vibra 90s.',      image: retroImg },
 ];
 
@@ -78,6 +78,20 @@ const COLORS = [
   },
 ];
 
+/* Colores de remera permitidos por estilo (slug interno).
+   Si un estilo no figura aca, se permiten los dos colores.
+   'rap-tee' = "Retro" (galaxia) · 'streetwear' = "Street" · 'retro' = "Granulado" */
+const STYLE_COLORS = {
+  vogue:      ['blanca'],
+  'rap-tee':  ['negra'],
+  streetwear: ['negra'],
+};
+const colorsForStyle = (slug) => {
+  const ids = STYLE_COLORS[slug];
+  const allowed = ids ? COLORS.filter((c) => ids.includes(c.id)) : COLORS;
+  return allowed.length ? allowed : COLORS;
+};
+
 const SIZES = [
   { id: 'S',  chest: '54cm', length: '70cm' },
   { id: 'M',  chest: '56cm', length: '72cm' },
@@ -85,7 +99,7 @@ const SIZES = [
   { id: 'XL', chest: '60cm', length: '76cm' },
 ];
 
-const PRICE = 42990;
+const PRICE = 100;
 
 /* ============================================================
    API CLIENT
@@ -208,72 +222,53 @@ const TshirtMockup = ({
   alt = 'Mockup remera',
   showBackground = true,
 }) => {
-  const mockupSrc = TSHIRT_MOCKUPS[color] || TSHIRT_MOCKUPS.blanca;
-  const isDark = color === 'negra';
+  const isDark   = color === 'negra';
+  const shirtSrc = TSHIRT_PHOTOS[color] || TSHIRT_PHOTOS.blanca;
+
+  // Caja de impresion en el pecho (ajustar aca si el diseno queda alto/bajo o grande/chico)
+  const printBox = { top: '26%', left: '50%', transform: 'translateX(-50%)', width: '50%', aspectRatio: '1 / 1' };
 
   return (
     <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
-      {/* Fondo sutil (opcional) */}
       {showBackground && (
         <div
           className="absolute inset-0 rounded-2xl"
           style={{
             background: isDark
-              ? 'radial-gradient(circle at center, #2a2a2a 0%, #1a1a1a 100%)'
-              : 'radial-gradient(circle at center, #fafafa 0%, #ececec 100%)',
+              ? 'radial-gradient(circle at 50% 40%, #2b2b2b 0%, #161616 100%)'
+              : 'radial-gradient(circle at 50% 40%, #fbfbfb 0%, #ededed 100%)',
           }}
         />
       )}
 
-      {/* La remera */}
+      {/* Remera real (foto oversize sin arrugas) */}
       <img
-        src={mockupSrc}
+        src={shirtSrc}
         alt={alt}
         className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
         draggable={false}
       />
 
-      {/* Zona del diseño */}
+      {/* Diseno sobre el pecho */}
       {designSrc ? (
-        <div
-          className="absolute pointer-events-none"
-          style={{
-            top: '30%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '38%',
-            aspectRatio: '1 / 1',
-          }}
-        >
+        <div className="absolute pointer-events-none" style={printBox}>
           <img
             src={designSrc}
-            alt={name ? `Diseño de ${name}` : 'Diseño'}
+            alt={name ? `Diseno de ${name}` : 'Diseno'}
             className="w-full h-full object-contain"
-            style={{
-              mixBlendMode: isDark ? 'screen' : 'multiply',
-              filter: isDark ? 'brightness(1.05) contrast(1.05)' : 'contrast(1.02)',
-            }}
+            style={{ mixBlendMode: isDark ? 'screen' : 'multiply' }}
             draggable={false}
           />
         </div>
       ) : (
-        <div
-          className="absolute flex items-center justify-center"
-          style={{
-            top: '30%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '38%',
-            aspectRatio: '1 / 1',
-          }}
-        >
+        <div className="absolute flex items-center justify-center" style={printBox}>
           <div
             className={`w-full h-full rounded-lg border-2 border-dashed flex items-center justify-center ${
-              isDark ? 'border-white/20' : 'border-black/15'
+              isDark ? 'border-white/25' : 'border-black/15'
             }`}
           >
             <span className={`text-[9px] sm:text-[10px] tracking-[0.25em] uppercase font-bold ${isDark ? 'text-white/40' : 'text-black/30'}`}>
-              Tu diseño
+              Tu diseno
             </span>
           </div>
         </div>
@@ -516,68 +511,85 @@ const NameStep = ({ value, onChange, onNext }) => {
    En este paso las dos remeras están una al lado de la otra, en grid 2 cols.
    Cada card mide ~150px en mobile y ~220px en desktop — proporción justa.
    ============================================================ */
-const ColorStep = ({ value, onChange, onNext }) => (
-  <StepLayout
-    eyebrow="03 · Color de la remera"
-    title="¿Blanca o negra?"
-    subtitle="Tu diseño se va a imprimir sobre el color que elijas."
-    footer={
-      <PrimaryButton onClick={onNext} disabled={!value}>
-        Continuar <ArrowRight />
-      </PrimaryButton>
+const ColorStep = ({ value, onChange, onNext, style }) => {
+  const options   = colorsForStyle(style);
+  const styleName = STYLES.find((s) => s.slug === style)?.name;
+  const single    = options.length === 1;
+
+  // Un solo color valido -> autoseleccionar. Color previo invalido -> corregir.
+  useEffect(() => {
+    if (single && value !== options[0].id) {
+      onChange(options[0].id);
+    } else if (value && !options.some((c) => c.id === value)) {
+      onChange(options[0].id);
     }
-  >
-    <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md mx-auto w-full">
-      {COLORS.map((c, i) => {
-        const active = value === c.id;
-        return (
-          <motion.button
-            key={c.id}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.07, duration: 0.4, ease: 'easeOut' }}
-            onClick={() => onChange(c.id)}
-            className={`relative rounded-2xl overflow-hidden border-2 transition-all text-left ${
-              active
-                ? 'border-neutral-900 ring-2 ring-neutral-900 ring-offset-2'
-                : 'border-neutral-200 hover:border-neutral-400'
-            }`}
-          >
-            <div className="w-full p-2 sm:p-4">
-              <TshirtMockup color={c.id} />
-            </div>
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [style]);
 
-            {active && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute top-3 right-3 w-7 h-7 bg-neutral-900 rounded-full flex items-center justify-center shadow-lg"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                  <path d="M5 12l5 5 9-11" />
-                </svg>
-              </motion.div>
-            )}
-
-            <div className="p-3 sm:p-4 bg-white border-t border-neutral-100">
-              <div className="flex items-center gap-2.5">
-                <span
-                  className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border flex-shrink-0"
-                  style={{ background: c.hex, borderColor: c.borderColor }}
-                />
-                <div className="font-bold text-sm tracking-tight">{c.name}</div>
+  return (
+    <StepLayout
+      eyebrow="03 · Color de la remera"
+      title={single ? `Va en remera ${options[0].name.toLowerCase()}` : '¿Blanca o negra?'}
+      subtitle={single
+        ? `El estilo ${styleName || ''} se luce sobre remera ${options[0].name.toLowerCase()}.`
+        : 'Tu diseño se va a imprimir sobre el color que elijas.'}
+      footer={
+        <PrimaryButton onClick={onNext} disabled={!value}>
+          Continuar <ArrowRight />
+        </PrimaryButton>
+      }
+    >
+      <div className={`grid gap-3 sm:gap-4 mx-auto w-full ${single ? 'grid-cols-1 max-w-xs' : 'grid-cols-2 max-w-md'}`}>
+        {options.map((c, i) => {
+          const active = value === c.id;
+          return (
+            <motion.button
+              key={c.id}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.07, duration: 0.4, ease: 'easeOut' }}
+              onClick={() => onChange(c.id)}
+              className={`relative rounded-2xl overflow-hidden border-2 transition-all text-left ${
+                active
+                  ? 'border-neutral-900 ring-2 ring-neutral-900 ring-offset-2'
+                  : 'border-neutral-200 hover:border-neutral-400'
+              }`}
+            >
+              <div className="w-full p-2 sm:p-4">
+                <TshirtMockup color={c.id} />
               </div>
-              <div className="text-[10px] sm:text-[11px] text-neutral-500 mt-1 leading-snug">
-                {c.desc}
-              </div>
-            </div>
-          </motion.button>
-        );
-      })}
-    </div>
-  </StepLayout>
-);
 
+              {active && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute top-3 right-3 w-7 h-7 bg-neutral-900 rounded-full flex items-center justify-center shadow-lg"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                    <path d="M5 12l5 5 9-11" />
+                  </svg>
+                </motion.div>
+              )}
+
+              <div className="p-3 sm:p-4 bg-white border-t border-neutral-100">
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border flex-shrink-0"
+                    style={{ background: c.hex, borderColor: c.borderColor }}
+                  />
+                  <div className="font-bold text-sm tracking-tight">{c.name}</div>
+                </div>
+                <div className="text-[10px] sm:text-[11px] text-neutral-500 mt-1 leading-snug">
+                  {c.desc}
+                </div>
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+    </StepLayout>
+  );
+};
 /* ============================================================
    STEP 4 — TALLE
    ============================================================ */
@@ -638,7 +650,8 @@ const SizeStep = ({ value, onChange, onNext }) => (
 /* ============================================================
    STEP 5 — UPLOAD
    ============================================================ */
-const UploadStep = ({ value, onChange, onNext }) => {
+const UploadStep = ({ value, onChange, onNext, style }) => {
+  const noEdit = style === 'no-edit';
   const [drag, setDrag] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -687,9 +700,9 @@ const UploadStep = ({ value, onChange, onNext }) => {
 
   return (
     <StepLayout
-      eyebrow="05 · Foto de tu mascota"
-      title="Subí una foto."
-      subtitle="Buena luz, fondo simple y la cara visible."
+      eyebrow={noEdit ? "05 · Tu diseño" : "05 · Foto de tu mascota"}
+      title={noEdit ? "Subí tu diseño." : "Subí una foto."}
+      subtitle={noEdit ? "Se estampa tal cual lo subas. Ideal PNG de buena calidad." : "Buena luz, fondo simple y la cara visible."}
       footer={
         <PrimaryButton onClick={onNext} disabled={!value || loading}>
           {loading ? 'Procesando...' : 'Continuar'}
@@ -1173,14 +1186,11 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
             {[
-              { l: 'Estilo',  v: styleName },
-              { l: 'Color',   v: colorObj.name },
               { l: 'Tela',    v: 'Algodón 240g' },
               { l: 'Estampa', v: 'DTF premium' },
               { l: 'Envío',   v: '3 a 5 días' },
-              { l: 'Hecho en',v: 'Argentina' },
             ].map((d) => (
               <div key={d.l} className="p-4 bg-neutral-50 rounded-2xl">
                 <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-neutral-500">{d.l}</div>
@@ -1189,19 +1199,30 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
             ))}
           </div>
 
-          <button
-            onClick={onRegenerate}
-            disabled={regenerating}
-            className="mt-6 w-full text-center text-sm font-semibold text-neutral-500 hover:text-neutral-900 disabled:opacity-50 transition"
-          >
-            {regenerating ? 'Regenerando con paciencia...' : '↻ Regenerar diseño (1 gratis)'}
-          </button>
+          <div className="mt-5 flex items-start gap-3 p-4 rounded-2xl bg-emerald-50 border border-emerald-100">
+            <span className="text-xl leading-none">🐾</span>
+            <div>
+              <div className="text-sm font-bold text-emerald-900">El 10% de tu compra va a refugios de mascotas</div>
+              <div className="text-xs text-emerald-700 mt-0.5">Con cada remera ayudás a que otra huella encuentre su hogar.</div>
+            </div>
+          </div>
+
+          {data.style !== 'no-edit' && (
+            <button
+              onClick={onRegenerate}
+              disabled={regenerating}
+              className="mt-6 w-full text-center text-sm font-semibold text-neutral-500 hover:text-neutral-900 disabled:opacity-50 transition"
+            >
+              {regenerating ? 'Regenerando con paciencia...' : '↻ Regenerar diseño (1 gratis)'}
+            </button>
+          )}
         </motion.div>
       </div>
 
       {/* CTA fijo abajo — va a ShippingStep */}
       <div className="fixed bottom-0 inset-x-0 p-5 bg-gradient-to-t from-white via-white to-white/80 backdrop-blur z-30">
         <div className="max-w-2xl mx-auto">
+          <div className="text-center text-[11px] font-semibold text-emerald-700 mb-2">🐾 10% de tu compra va a refugios de mascotas</div>
           <PrimaryButton onClick={onBuy}>
             Agregar — ${PRICE.toLocaleString('es-AR')}
             <ArrowRight />
@@ -1304,7 +1325,7 @@ const CreateFlow = ({ initialStyle = '' }) => {
     try {
       const json = await apiRequest(
         `?recurso=regenerar&id=${generated.id}`,
-        { method: 'POST' },
+        { method: 'POST', body: JSON.stringify({ color: data.color }) },
         GENERATION_TIMEOUT_MS
       );
       setGenerated((g) => ({ ...g, ...json }));
@@ -1343,11 +1364,11 @@ const CreateFlow = ({ initialStyle = '' }) => {
       case 'name':
         return <NameStep value={data.name} onChange={update('name')} onNext={nextStep} />;
       case 'color':
-        return <ColorStep value={data.color} onChange={update('color')} onNext={nextStep} />;
+        return <ColorStep value={data.color} onChange={update('color')} onNext={nextStep} style={data.style} />;
       case 'size':
         return <SizeStep value={data.size} onChange={update('size')} onNext={nextStep} />;
       case 'upload':
-        return <UploadStep value={data.photo} onChange={update('photo')} onNext={nextStep} />;
+        return <UploadStep value={data.photo} onChange={update('photo')} onNext={nextStep} style={data.style} />;
       case 'summary':
         return <SummaryStep data={data} onNext={nextStep} onEdit={goTo} />;
       case 'generating':
