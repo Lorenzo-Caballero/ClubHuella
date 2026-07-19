@@ -4,8 +4,8 @@ import { AnimatePresence } from "framer-motion";
 
 import Home from "./pages/Home";
 import CreateFlow from "./pages/CreateFlow";
+import Gracias from "./pages/Gracias";
 import NotFound from "./pages/NotFound";
-import PedidosAdmin from "./pages/admin/PedidosAdmin";
 
 const App = () => {
   const location = useLocation();
@@ -15,7 +15,7 @@ const App = () => {
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Home />} />
         <Route path="/crear" element={<CreateFlow />} />
-        <Route path="/admin-pedidos" element={<PedidosAdmin />} />
+        <Route path="/gracias" element={<Gracias />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
