@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   FiCreditCard,
   FiSmartphone,
   FiDollarSign,
   FiShoppingBag,
-  FiTruck,
   FiUser,
   FiShield,
   FiAlertCircle,
@@ -18,8 +18,14 @@ import {
 import { BsBank2 } from 'react-icons/bs';
 import { RiShirtLine } from 'react-icons/ri';
 import MercadoLogo from '../../assets/MercadoLogo.png';
-
-const PAY_URL = 'https://clubhuella.com/payments_envios.php?action=pagar';
+import {
+  PAY_URL,
+  TSHIRT_PRICE,
+  PICKUP,
+  PICKUP_FULL_ADDRESS,
+  assetUrl,
+} from '../../config/env';
+import { clearCart, selectCartItems, selectCartSubtotal } from '../../store/cartSlice';
 
 const STYLES_MAP = {
   vogue:      'Vogue',
@@ -74,25 +80,49 @@ const PaymentBadge = ({ icon: Icon, label }) => (
 
 function resolveDesignSrc(generated) {
   if (!generated) return null;
-  const raw = generated.imagen_generada || generated.imagen_url;
-  if (!raw) return null;
-  if (raw.startsWith('data:')) return raw;
-  return `https://clubhuella.com/${raw}`;
+  return assetUrl(generated.imagen_generada || generated.imagen_url);
 }
 
 const PaymentStep = ({ data, generated, shippingData, onBack }) => {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
 
+  // Carrito (Redux Toolkit)
+  const dispatch     = useDispatch();
+  const cartItems    = useSelector(selectCartItems);
+  const cartSubtotal = useSelector(selectCartSubtotal);
+  const subtotal     = cartSubtotal > 0 ? cartSubtotal : (shippingData?.subtotal ?? TSHIRT_PRICE);
+
   const styleName = STYLES_MAP[data?.style]  || data?.style  || '—';
   const colorName = COLORS_MAP[data?.color]  || data?.color  || '—';
   const isPickup  = shippingData?.type === 'tienda';
   const shipCost  = shippingData?.cost  ?? 0;
-  const total     = shippingData?.total ?? 42990;
+  const total     = shippingData?.total ?? (subtotal + shipCost);
   const designSrc = resolveDesignSrc(generated);
 
+  // Líneas del pedido: salen del carrito; si está vacío, mostramos el diseño actual.
+  // Cada item usa SU propia imagen: si cayéramos al diseño actual como fallback,
+  // dos remeras de estilos distintos mostrarían el mismo (el último generado).
+  const orderLines = cartItems.length > 0
+    ? cartItems.map((item) => ({
+        key:      item.id,
+        image:    item.image || (item.imagenUrl ? assetUrl(item.imagenUrl) : null),
+        title:    item.name || 'Mi mascota',
+        subtitle: `${item.styleName || STYLES_MAP[item.style] || item.style || '—'} · ${item.colorName || COLORS_MAP[item.color] || item.color || '—'} · Talle ${item.size || '—'}`,
+        qty:      item.qty,
+        price:    item.price * item.qty,
+      }))
+    : [{
+        key:      'actual',
+        image:    designSrc,
+        title:    data?.name || 'Mi mascota',
+        subtitle: `${styleName} · ${colorName} · Talle ${data?.size || '—'}`,
+        qty:      1,
+        price:    subtotal,
+      }];
+
   const addressLine = isPickup
-    ? 'Av. Héctor Jara 22, Mar del Plata'
+    ? PICKUP_FULL_ADDRESS
     : shippingData?.address || [
         shippingData?.street,
         shippingData?.streetNumber,
@@ -113,17 +143,17 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
         nombre:    shippingData.recipientName ?? '',
         telefono:  isPickup ? '' : (shippingData.phone ?? ''),
         direccion: isPickup
-          ? 'Av. Héctor Jara 22'
+          ? PICKUP.address
           : `${shippingData.street ?? ''} ${shippingData.streetNumber ?? ''}${shippingData.apt ? ` ${shippingData.apt}` : ''}`.trim(),
-        ciudad:    isPickup ? 'Mar del Plata' : (shippingData.city ?? ''),
-        cp:        isPickup ? '7600'          : (shippingData.postalCode ?? ''),
+        ciudad:    isPickup ? PICKUP.city       : (shippingData.city ?? ''),
+        cp:        isPickup ? PICKUP.postalCode : (shippingData.postalCode ?? ''),
         estilo:         data?.style ?? '',
         nombre_mascota: data?.name  ?? '',
         color:          data?.color ?? '',
         talle:          data?.size  ?? '',
         imagen_url:     generated?.imagen_url ?? '',
         diseno_id:      generated?.id ?? '',
-        precio_remera:  42990,
+        precio_remera:  subtotal,
         precio_envio:   shipCost,
         total,
         tipo_entrega:   shippingData.type,
@@ -141,6 +171,10 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
       if (!res.ok || !json.ok || !json.init_point) {
         throw new Error(json.error || 'No pudimos iniciar el pago. Intentá de nuevo.');
       }
+
+      // El pedido ya quedó creado en el backend: vaciamos el carrito para que
+      // no se arrastre a una compra siguiente y termine cobrando de más.
+      dispatch(clearCart());
 
       window.location.href = json.init_point;
 
@@ -185,31 +219,34 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 px-4 py-4 border-b border-neutral-200">
-            {designSrc ? (
-              <div className="w-14 h-14 rounded-xl overflow-hidden border border-neutral-200 bg-white flex-shrink-0">
-                <img src={designSrc} alt="Diseño" className="w-full h-full object-contain" />
+          {orderLines.map((line) => (
+            <div key={line.key} className="flex items-center gap-4 px-4 py-4 border-b border-neutral-200">
+              {line.image ? (
+                <div className="w-14 h-14 rounded-xl overflow-hidden border border-neutral-200 bg-white flex-shrink-0">
+                  <img src={line.image} alt="Diseño" className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <div className="w-14 h-14 rounded-xl bg-neutral-100 flex-shrink-0 flex items-center justify-center border border-neutral-200">
+                  <RiShirtLine size={22} className="text-neutral-400" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-neutral-900 truncate uppercase tracking-tight">
+                  {line.title}
+                  {line.qty > 1 && <span className="text-neutral-400 font-bold"> ×{line.qty}</span>}
+                </div>
+                <div className="text-[12px] text-neutral-500 mt-0.5">
+                  {line.subtitle}
+                </div>
+                <div className="text-[11px] text-neutral-400 mt-0.5">
+                  Algodón 240g · DTF premium
+                </div>
               </div>
-            ) : (
-              <div className="w-14 h-14 rounded-xl bg-neutral-100 flex-shrink-0 flex items-center justify-center border border-neutral-200">
-                <RiShirtLine size={22} className="text-neutral-400" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="font-black text-neutral-900 truncate uppercase tracking-tight">
-                {data?.name || 'Mi mascota'}
-              </div>
-              <div className="text-[12px] text-neutral-500 mt-0.5">
-                {styleName} · {colorName} · Talle {data?.size}
-              </div>
-              <div className="text-[11px] text-neutral-400 mt-0.5">
-                Algodón 240g · DTF premium
+              <div className="font-semibold text-sm flex-shrink-0">
+                ${line.price.toLocaleString('es-AR')}
               </div>
             </div>
-            <div className="font-semibold text-sm flex-shrink-0">
-              $42.990
-            </div>
-          </div>
+          ))}
 
           <div className="flex items-start justify-between px-4 py-4 border-b border-neutral-200">
             <div className="flex items-start gap-3">

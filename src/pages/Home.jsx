@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+
+import CartButton from '../components/CartButton';
 
 /* Fotos de estilo reutilizadas como muestras reales de producto */
 import vogueImg     from '../assets/styles/vogue.jpg';
@@ -60,6 +63,65 @@ const NAV_LINKS = [
 /* ============================================================
    HEADER  (menú hamburguesa funcional)
    ============================================================ */
+const MobileMenu = ({ onClose }) =>
+  /* Portal a <body>: el header usa backdrop-blur (y <main> puede tener
+     transform por framer-motion), lo que convierte al header en containing
+     block y hacía que el drawer fixed quedara pegado/superpuesto al home. */
+  createPortal(
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-[#171717]/40 backdrop-blur-sm z-[90] md:hidden"
+      />
+      <motion.div
+        role="dialog"
+        aria-label="Menú"
+        initial={{ x: '-100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '-100%' }}
+        transition={{ type: 'tween', ease: [0.22, 1, 0.36, 1], duration: 0.35 }}
+        className="fixed top-0 left-0 bottom-0 w-72 max-w-[80%] bg-[#FBF9F4] z-[100] md:hidden p-6 flex flex-col shadow-2xl"
+      >
+        <div className="flex items-center justify-between mb-10">
+          <span className="font-black tracking-[0.18em] text-neutral-900">
+            CLUBHUELLA<span className="text-[#C2410C]">.</span>
+          </span>
+          <button aria-label="Cerrar menú" onClick={onClose} className="p-2 -mr-2">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <nav className="flex flex-col gap-1">
+          {NAV_LINKS.map((l, i) => (
+            <motion.a
+              key={l.href}
+              href={l.href}
+              onClick={onClose}
+              initial={{ opacity: 0, x: -16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 + i * 0.06 }}
+              className="py-3 text-lg font-semibold text-neutral-800 border-b border-neutral-900/10"
+            >
+              {l.label}
+            </motion.a>
+          ))}
+        </nav>
+        <a
+          href="/crear"
+          onClick={onClose}
+          className="mt-auto inline-flex items-center justify-center bg-neutral-900 text-white py-4 rounded-full font-semibold text-sm"
+        >
+          Crear mi remera
+        </a>
+      </motion.div>
+    </>,
+    document.body
+  );
+
 const Header = () => {
   const [open, setOpen] = useState(false);
 
@@ -68,8 +130,15 @@ const Header = () => {
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (e) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open]);
+
   return (
-    <header className="sticky top-0 z-50 bg-[#FBF9F4]/85 backdrop-blur-md border-b border-neutral-900/10">
+    <header className="sticky top-0 z-40 bg-[#FBF9F4]/85 backdrop-blur-md border-b border-neutral-900/10">
       <div className="max-w-7xl mx-auto px-5 md:px-8 h-16 flex items-center justify-between">
         <button
           aria-label="Abrir menú"
@@ -97,75 +166,20 @@ const Header = () => {
           CLUBHUELLA<span className="text-[#C2410C]">.</span>
         </a>
 
-        <a
-          href="/crear"
-          className="hidden md:inline-flex items-center bg-neutral-900 text-white px-5 py-2.5 rounded-full text-xs font-semibold tracking-wide hover:bg-[#262626] transition"
-        >
-          Crear remera
-        </a>
-
-        {/* Carrito (mobile) */}
-        <a href="/" aria-label="Inicio" className="md:hidden relative p-2 -mr-2 text-neutral-900">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M6 7h12l-1.2 10.4a2 2 0 0 1-2 1.6H9.2a2 2 0 0 1-2-1.6L6 7Z" />
-            <path d="M9 7a3 3 0 1 1 6 0" />
-          </svg>
-        </a>
+        <div className="flex items-center gap-1 -mr-2">
+          <a
+            href="/crear"
+            className="hidden md:inline-flex items-center bg-neutral-900 text-white px-5 py-2.5 rounded-full text-xs font-semibold tracking-wide hover:bg-[#262626] transition"
+          >
+            Crear remera
+          </a>
+          <CartButton />
+        </div>
       </div>
 
-      {/* Drawer mobile */}
+      {/* Drawer mobile (renderizado fuera del header, ver MobileMenu) */}
       <AnimatePresence>
-        {open && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setOpen(false)}
-              className="fixed inset-0 bg-[#171717]/40 backdrop-blur-sm z-40 md:hidden"
-            />
-            <motion.div
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'tween', ease: [0.22, 1, 0.36, 1], duration: 0.35 }}
-              className="fixed top-0 left-0 bottom-0 w-72 max-w-[80%] bg-[#FBF9F4] z-50 md:hidden p-6 flex flex-col"
-            >
-              <div className="flex items-center justify-between mb-10">
-                <span className="font-black tracking-[0.18em] text-neutral-900">
-                  CLUBHUELLA<span className="text-[#C2410C]">.</span>
-                </span>
-                <button aria-label="Cerrar menú" onClick={() => setOpen(false)} className="p-2 -mr-2">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M6 6l12 12M18 6L6 18" />
-                  </svg>
-                </button>
-              </div>
-              <nav className="flex flex-col gap-1">
-                {NAV_LINKS.map((l, i) => (
-                  <motion.a
-                    key={l.href}
-                    href={l.href}
-                    onClick={() => setOpen(false)}
-                    initial={{ opacity: 0, x: -16 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 + i * 0.06 }}
-                    className="py-3 text-lg font-semibold text-neutral-800 border-b border-neutral-900/10"
-                  >
-                    {l.label}
-                  </motion.a>
-                ))}
-              </nav>
-              <a
-                href="/crear"
-                onClick={() => setOpen(false)}
-                className="mt-auto inline-flex items-center justify-center bg-neutral-900 text-white py-4 rounded-full font-semibold text-sm"
-              >
-                Crear mi remera
-              </a>
-            </motion.div>
-          </>
-        )}
+        {open && <MobileMenu onClose={() => setOpen(false)} />}
       </AnimatePresence>
     </header>
   );

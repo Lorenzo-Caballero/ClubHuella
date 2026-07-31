@@ -1,5 +1,6 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSelector } from 'react-redux';
 import {
   FiPackage,
   FiMapPin,
@@ -9,6 +10,8 @@ import {
   FiTruck,
 } from 'react-icons/fi';
 import { MdOutlineStorefront } from 'react-icons/md';
+import { RATE_URL, TSHIRT_PRICE, PICKUP_FULL_ADDRESS } from '../../config/env';
+import { selectCartSubtotal } from '../../store/cartSlice';
 
 /* ============================================================
    SHIPPING STEP — Club Huella
@@ -24,8 +27,7 @@ import { MdOutlineStorefront } from 'react-icons/md';
      onBack       → fn() — vuelve al ResultStep
    ============================================================ */
 
-const PRICE_TSHIRT = 42990;
-const RATE_URL     = 'https://clubhuella.com/payments_envios.php?action=rate';
+const PRICE_TSHIRT = TSHIRT_PRICE;
 
 /* ── UI Primitives ─────────────────────────────────────────── */
 
@@ -211,14 +213,14 @@ const StorePickupView = () => (
         <div className="text-[10px] font-bold tracking-[0.3em] uppercase text-neutral-400 mb-2">Punto de retiro</div>
         <div className="font-black text-lg tracking-tight text-neutral-900">Club Huella</div>
         <div className="text-sm text-neutral-600 mt-1">
-          Av. Héctor Jara 22, Mar del Plata<br />Buenos Aires, Argentina
+          {PICKUP_FULL_ADDRESS}<br />Buenos Aires, Argentina
         </div>
         <div className="mt-3 flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-500" />
           <span className="text-[11px] font-bold text-neutral-700">Lunes a viernes · 10 a 19 hs</span>
         </div>
         <a
-          href="https://maps.google.com/?q=Av.+Héctor+Jara+22,+Mar+del+Plata"
+          href={`https://maps.google.com/?q=${encodeURIComponent(PICKUP_FULL_ADDRESS)}`}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-4 inline-flex items-center gap-2 text-[12px] font-bold text-neutral-900 underline underline-offset-4 hover:text-neutral-600 transition"
@@ -244,13 +246,13 @@ const StorePickupView = () => (
 
 /* ── Resumen de precio ─────────────────────────────────────── */
 
-const PriceSummary = ({ shipCost }) => {
-  const total = PRICE_TSHIRT + (shipCost ?? 0);
+const PriceSummary = ({ shipCost, subtotal }) => {
+  const total = subtotal + (shipCost ?? 0);
   return (
     <div className="bg-neutral-50 rounded-2xl divide-y divide-neutral-200 border border-neutral-200">
       <div className="flex items-center justify-between px-4 py-3.5">
         <span className="text-sm text-neutral-600">Remera personalizada</span>
-        <span className="text-sm font-semibold">${PRICE_TSHIRT.toLocaleString('es-AR')}</span>
+        <span className="text-sm font-semibold">${subtotal.toLocaleString('es-AR')}</span>
       </div>
       <div className="flex items-center justify-between px-4 py-3.5">
         <span className="text-sm text-neutral-600">Envío</span>
@@ -273,6 +275,11 @@ const PriceSummary = ({ shipCost }) => {
    ================================================================ */
 
 const ShippingStep = ({ data, generated, onNext, onBack }) => {
+  // El subtotal sale del carrito (Redux). Fallback al precio unitario por si
+  // se entra al paso sin haber pasado por "Agregar al carrito".
+  const cartSubtotal = useSelector(selectCartSubtotal);
+  const subtotal = cartSubtotal > 0 ? cartSubtotal : PRICE_TSHIRT;
+
   const [method, setMethod]                   = useState('domicilio');
   const [form, setForm]                       = useState({
     recipientName: '',
@@ -356,16 +363,18 @@ const ShippingStep = ({ data, generated, onNext, onBack }) => {
       onNext({
         type:          'tienda',
         cost:          0,
-        total:         PRICE_TSHIRT,
+        subtotal,
+        total:         subtotal,
         recipientName: pickupName.trim(),
-        pickupAddress: 'Av. Héctor Jara 22, Mar del Plata',
+        pickupAddress: PICKUP_FULL_ADDRESS,
       });
     } else {
       const cost  = Math.round(selectedCarrier.price);
-      const total = PRICE_TSHIRT + cost;
+      const total = subtotal + cost;
       onNext({
         type:          'domicilio',
         cost,
+        subtotal,
         total,
         carrier:       selectedCarrier.carrier,
         service:       selectedCarrier.service,
@@ -667,6 +676,7 @@ const ShippingStep = ({ data, generated, onNext, onBack }) => {
 
         {/* Resumen precio */}
         <PriceSummary
+          subtotal={subtotal}
           shipCost={
             method === 'tienda'
               ? 0

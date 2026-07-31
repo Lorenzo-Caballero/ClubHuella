@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 
 // Mockups de remeras — el bundler (Vite/Webpack) procesa estos imports
 import remeraBlancaImg from '../assets/remeraBlanca.png';
@@ -17,14 +18,19 @@ import cleanLookImg from '../assets/styles/clean-look.jpg';   // collage -> slug
 import ShippingStep from './stepsComponents/ShippingStep';
 import PaymentStep  from './stepsComponents/PaymentStep';
 
+// ── Config por variables de entorno + carrito ──────────────
+import {
+  DESIGNS_URL,
+  GENERATION_TIMEOUT_MS,
+  REQUEST_TIMEOUT_MS,
+  TSHIRT_PRICE,
+  assetUrl,
+} from '../config/env';
+import { addItem, selectCartItems, selectLastCartItem } from '../store/cartSlice';
+
 /* ============================================================
    CONFIG
    ============================================================ */
-
-const API_URL = 'https://clubhuella.com/disenos.php';
-const SERVER_BASE_URL = 'https://clubhuella.com';
-
-const GENERATION_TIMEOUT_MS = 150_000;
 
 const TSHIRT_MOCKUPS = {
   blanca: remeraBlancaImg,
@@ -85,19 +91,19 @@ const SIZES = [
   { id: 'XL', chest: '60cm', length: '76cm' },
 ];
 
-const PRICE = 42990;
+const PRICE = TSHIRT_PRICE;
 
 /* ============================================================
    API CLIENT
    ============================================================ */
 
-async function apiRequest(path, options = {}, timeoutMs = 30_000) {
+async function apiRequest(path, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
   const timerId = setTimeout(() => controller.abort(), timeoutMs);
 
   let response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(`${DESIGNS_URL}${path}`, {
       ...options,
       signal: controller.signal,
       headers: {
@@ -143,9 +149,8 @@ async function apiRequest(path, options = {}, timeoutMs = 30_000) {
    ============================================================ */
 
 function resolveImageSrc(imagenGenerada, imagenUrl) {
-  if (imagenGenerada && imagenGenerada.startsWith('data:')) return imagenGenerada;
-  if (imagenGenerada && imagenGenerada.length > 0) return `${SERVER_BASE_URL}/${imagenGenerada}`;
-  if (imagenUrl) return `${SERVER_BASE_URL}/${imagenUrl}`;
+  if (imagenGenerada && imagenGenerada.length > 0) return assetUrl(imagenGenerada);
+  if (imagenUrl) return assetUrl(imagenUrl);
   return null;
 }
 
@@ -198,13 +203,12 @@ async function fileToCompressedDataURL(file, maxSize = 1600, quality = 0.9) {
 
 /* ============================================================
    TSHIRT MOCKUP — Componente reusable
-   El tamaño se controla DESDE AFUERA con clases tipo w-64, max-w-xs, etc.
-   El componente solo se ocupa de la composición interna.
+   Muestra SOLO la remera lisa (blanca o negra). El diseño nunca
+   se superpone acá: se muestra aparte, en su propia tarjeta.
+   El tamaño se controla DESDE AFUERA con clases tipo w-64, max-w-xs.
    ============================================================ */
 const TshirtMockup = ({
   color = 'blanca',
-  designSrc,
-  name,
   alt = 'Mockup remera',
   showBackground = true,
 }) => {
@@ -232,52 +236,6 @@ const TshirtMockup = ({
         className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
         draggable={false}
       />
-
-      {/* Zona del diseño */}
-      {designSrc ? (
-        <div
-          className="absolute pointer-events-none"
-          style={{
-            top: '30%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '38%',
-            aspectRatio: '1 / 1',
-          }}
-        >
-          <img
-            src={designSrc}
-            alt={name ? `Diseño de ${name}` : 'Diseño'}
-            className="w-full h-full object-contain"
-            style={{
-              mixBlendMode: isDark ? 'screen' : 'multiply',
-              filter: isDark ? 'brightness(1.05) contrast(1.05)' : 'contrast(1.02)',
-            }}
-            draggable={false}
-          />
-        </div>
-      ) : (
-        <div
-          className="absolute flex items-center justify-center"
-          style={{
-            top: '30%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '38%',
-            aspectRatio: '1 / 1',
-          }}
-        >
-          <div
-            className={`w-full h-full rounded-lg border-2 border-dashed flex items-center justify-center ${
-              isDark ? 'border-white/20' : 'border-black/15'
-            }`}
-          >
-            <span className={`text-[9px] sm:text-[10px] tracking-[0.25em] uppercase font-bold ${isDark ? 'text-white/40' : 'text-black/30'}`}>
-              Tu diseño
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -685,6 +643,31 @@ const UploadStep = ({ value, onChange, onNext }) => {
     handleFile(e.dataTransfer.files[0]);
   };
 
+  // Reseteamos el value para que elegir dos veces la misma foto vuelva a disparar onChange
+  const onInputChange = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    handleFile(file);
+  };
+
+  const openGallery = () => {
+    if (loading) return;
+    setError('');
+    fileRef.current?.click();
+  };
+
+  const openCamera = () => {
+    if (loading) return;
+    setError('');
+    const input = cameraRef.current;
+    if (!input) return;
+    // Algunos navegadores mobile solo respetan `capture` si está presente
+    // en el momento del click; lo reforzamos para que abra la cámara
+    // en lugar del explorador de archivos.
+    input.setAttribute('capture', 'environment');
+    input.click();
+  };
+
   return (
     <StepLayout
       eyebrow="05 · Foto de tu mascota"
@@ -699,11 +682,34 @@ const UploadStep = ({ value, onChange, onNext }) => {
     >
       {/* Limitamos el ancho máximo del área de subida en desktop */}
       <div className="max-w-sm mx-auto w-full">
+        {/* Los inputs viven FUERA del área clickeable: si estuvieran adentro,
+            el click sintético del input de cámara burbujea al contenedor y
+            este vuelve a abrir el selector de galería. */}
+        {/* sr-only en lugar de display:none — algunas versiones de iOS Safari
+            ignoran .click() sobre inputs con display:none. */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,.heic,.heif"
+          className="sr-only"
+          tabIndex={-1}
+          onChange={onInputChange}
+        />
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="sr-only"
+          tabIndex={-1}
+          onChange={onInputChange}
+        />
+
         <div
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
           onDrop={onDrop}
-          onClick={() => !value && !loading && fileRef.current?.click()}
+          onClick={() => !value && openGallery()}
           className={`relative aspect-square w-full rounded-3xl border-2 border-dashed transition-all overflow-hidden ${
             loading ? 'border-neutral-400 bg-neutral-50' :
             drag    ? 'border-neutral-900 bg-neutral-50 scale-[0.99]' :
@@ -711,9 +717,6 @@ const UploadStep = ({ value, onChange, onNext }) => {
                       'border-neutral-300 hover:border-neutral-500 bg-neutral-50 cursor-pointer'
           }`}
         >
-          <input ref={fileRef} type="file" accept="image/*,.heic,.heif" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
-          <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
-
           {loading ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-10 h-10 border-2 border-neutral-300 border-t-neutral-900 rounded-full" />
@@ -741,11 +744,11 @@ const UploadStep = ({ value, onChange, onNext }) => {
 
         {!value && !loading && (
           <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <button type="button" onClick={() => fileRef.current?.click()} className="h-12 rounded-full border border-neutral-300 bg-white text-sm font-semibold hover:border-neutral-900 transition flex items-center justify-center gap-2">
+            <button type="button" onClick={openGallery} className="h-12 rounded-full border border-neutral-300 bg-white text-sm font-semibold hover:border-neutral-900 transition flex items-center justify-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="11" r="2" /><path d="M21 15l-5-5L5 19" /></svg>
               Galería
             </button>
-            <button type="button" onClick={() => cameraRef.current?.click()} className="h-12 rounded-full border border-neutral-300 bg-white text-sm font-semibold hover:border-neutral-900 transition flex items-center justify-center gap-2">
+            <button type="button" onClick={openCamera} className="h-12 rounded-full border border-neutral-300 bg-white text-sm font-semibold hover:border-neutral-900 transition flex items-center justify-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7h3l2-3h8l2 3h3v12H3z" /><circle cx="12" cy="13" r="3.5" /></svg>
               Cámara
             </button>
@@ -1013,11 +1016,12 @@ const GeneratingStep = ({ data, onDone, onError }) => {
 
 /* ============================================================
    STEP 8 — RESULT
-   En desktop usamos un layout de 2 columnas para que la remera no quede gigante:
-   columna izquierda con el mockup (max-w-sm), columna derecha con info.
-   En mobile vuelve a layout vertical normal.
+   Mostramos el diseño terminado solo (nunca superpuesto a la remera:
+   el mockup con la estampa encima quedaba mal). Debajo, la remera lisa
+   del color elegido como referencia de sobre qué se imprime.
+   Desktop: 2 columnas. Mobile: layout vertical.
    ============================================================ */
-const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
+const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating, inCart = false }) => {
   const styleName = STYLES.find((s) => s.slug === data.style)?.name || '—';
   const colorObj  = COLORS.find((c) => c.id === data.color) || COLORS[0];
   const isDark    = data.color === 'negra';
@@ -1071,48 +1075,38 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
       {/* Layout de 2 columnas en desktop, 1 columna en mobile */}
       <div className="mt-6 sm:mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-start">
 
-        {/* Columna izquierda: Mockup */}
+        {/* Columna izquierda: el diseño terminado (sin superponerlo a la remera) */}
         <div className="md:sticky md:top-24">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-            className={`w-full max-w-sm mx-auto rounded-3xl overflow-hidden relative shadow-sm border ${
-              isDark ? 'border-neutral-800' : 'border-neutral-200'
-            }`}
-            style={{
-              background: isDark
-                ? 'linear-gradient(180deg, #1c1c1c 0%, #0e0e0e 100%)'
-                : 'linear-gradient(180deg, #fafafa 0%, #ececec 100%)',
-            }}
+            className="w-full max-w-sm mx-auto rounded-3xl overflow-hidden relative shadow-sm border border-neutral-200 bg-white"
           >
             {imageSrc ? (
-              <div className="p-4 sm:p-6">
-                <TshirtMockup
-                  color={data.color}
-                  designSrc={imageSrc}
-                  name={data.name}
-                  alt={`Remera ${colorObj.name} con diseño de ${data.name}`}
-                  showBackground={false}
+              <div className="aspect-square w-full p-4 sm:p-6">
+                <img
+                  src={imageSrc}
+                  alt={`Diseño de ${data.name || 'tu mascota'}`}
+                  className="w-full h-full object-contain"
+                  draggable={false}
                 />
               </div>
             ) : (
               <div className="aspect-square w-full flex items-center justify-center">
                 <div className="text-center p-8">
-                  <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                  <div className="text-sm mb-2 text-neutral-500">
                     No se pudo cargar la imagen.
                   </div>
-                  <div className={`text-xs ${isDark ? 'text-neutral-500' : 'text-neutral-600'}`}>
+                  <div className="text-xs text-neutral-600">
                     El diseño fue generado pero no se pudo mostrar. Intentá regenerar.
                   </div>
                 </div>
               </div>
             )}
 
-            <div className={`absolute top-4 left-4 backdrop-blur rounded-full px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase ${
-              isDark ? 'bg-white text-neutral-900' : 'bg-neutral-900 text-white'
-            }`}>
-              ✦ Listo
+            <div className="absolute top-4 left-4 backdrop-blur rounded-full px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase bg-neutral-900 text-white">
+              ✦ Tu diseño
             </div>
 
             {regenerating && (
@@ -1126,31 +1120,28 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
             )}
           </motion.div>
 
-          {/* Detalle del diseño (chico) */}
-          {imageSrc && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.25 }}
-              className="mt-4 max-w-sm mx-auto flex items-center gap-3"
-            >
-              <div className="aspect-square w-20 sm:w-24 rounded-xl overflow-hidden border border-neutral-200 bg-white flex-shrink-0">
-                <img
-                  src={imageSrc}
-                  alt="Detalle del diseño"
-                  className="w-full h-full object-contain"
-                />
+          {/* Remera elegida — lisa, sin el diseño encima */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.25 }}
+            className="mt-4 max-w-sm mx-auto flex items-center gap-3 p-3 rounded-2xl border border-neutral-200 bg-neutral-50"
+          >
+            <div className={`w-20 sm:w-24 flex-shrink-0 rounded-xl overflow-hidden ${isDark ? 'bg-neutral-900' : 'bg-white'}`}>
+              <TshirtMockup color={data.color} alt={`Remera ${colorObj.name}`} showBackground={false} />
+            </div>
+            <div>
+              <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-neutral-500">
+                Se imprime sobre
               </div>
-              <div>
-                <div className="text-[10px] font-bold tracking-[0.25em] uppercase text-neutral-500">
-                  El diseño solo
-                </div>
-                <div className="text-sm text-neutral-700 mt-0.5">
-                  Listo para imprimir
-                </div>
+              <div className="text-sm font-semibold text-neutral-900 mt-0.5">
+                Remera {colorObj.name.toLowerCase()} · Talle {data.size}
               </div>
-            </motion.div>
-          )}
+              <div className="text-[11px] text-neutral-500 mt-0.5">
+                Estampa DTF centrada al frente
+              </div>
+            </div>
+          </motion.div>
         </div>
 
         {/* Columna derecha: Info */}
@@ -1199,11 +1190,11 @@ const ResultStep = ({ data, generated, onRegenerate, onBuy, regenerating }) => {
         </motion.div>
       </div>
 
-      {/* CTA fijo abajo — va a ShippingStep */}
+      {/* CTA fijo abajo — agrega al carrito y va a ShippingStep */}
       <div className="fixed bottom-0 inset-x-0 p-5 bg-gradient-to-t from-white via-white to-white/80 backdrop-blur z-30">
         <div className="max-w-2xl mx-auto">
-          <PrimaryButton onClick={onBuy}>
-            Agregar — ${PRICE.toLocaleString('es-AR')}
+          <PrimaryButton onClick={onBuy} disabled={regenerating}>
+            {inCart ? 'Continuar con la compra' : `Agregar al carrito — $${PRICE.toLocaleString('es-AR')}`}
             <ArrowRight />
           </PrimaryButton>
         </div>
@@ -1248,22 +1239,41 @@ const slideVariants = {
 
 const CreateFlow = ({ initialStyle = '' }) => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [searchParams] = useSearchParams();
   const goHome = useCallback(() => navigate('/'), [navigate]);
 
-  const [stepIndex,    setStepIndex]    = useState(0);
+  /* Entrada directa al checkout desde el carrito: /crear?paso=envio.
+     Reconstruimos el pedido a partir del último item del carrito, así el
+     usuario no tiene que volver a generar el diseño. */
+  const lastCartItem = useSelector(selectLastCartItem);
+  const resumeCheckout = searchParams.get('paso') === 'envio' && !!lastCartItem;
+
+  const [stepIndex,    setStepIndex]    = useState(() => (resumeCheckout ? IDX.shipping : 0));
   const [direction,    setDirection]    = useState(1);
-  const [data,         setData]         = useState({
+  const [data,         setData]         = useState(() => (resumeCheckout ? {
+    style: lastCartItem.style,
+    name:  lastCartItem.name,
+    color: lastCartItem.color,
+    size:  lastCartItem.size,
+    photo: null,
+  } : {
     style: initialStyle || searchParams.get('estilo') || '',
     name:  '',
     color: '',
     size:  '',
     photo: null,
-  });
-  const [generated,    setGenerated]    = useState(null);
+  }));
+  const [generated,    setGenerated]    = useState(() => (resumeCheckout ? {
+    id:              lastCartItem.disenoId,
+    imagen_url:      lastCartItem.imagenUrl || '',
+    imagen_generada: '',
+  } : null));
   const [shippingData, setShippingData] = useState(null);  // ← nuevo
   const [error,        setError]        = useState(null);
   const [regenerating, setRegenerating] = useState(false);
+
+  const cartItems = useSelector(selectCartItems);
 
   const goTo = useCallback((i) => {
     setDirection(i > stepIndex ? 1 : -1);
@@ -1315,6 +1325,43 @@ const CreateFlow = ({ initialStyle = '' }) => {
     }
   }, [generated]);
 
+  // ── Carrito (Redux Toolkit): agrega la remera y sigue a envío ──
+  // Si el usuario vuelve al resultado y toca de nuevo el CTA, no queremos
+  // sumar una segunda unidad del mismo diseño: solo avanzamos.
+  const alreadyInCart = cartItems.some(
+    (i) => i.disenoId != null &&
+           i.disenoId === generated?.id &&
+           i.size === data.size &&
+           i.color === data.color
+  );
+
+  const handleAddToCart = useCallback(() => {
+    if (alreadyInCart) {
+      goTo(IDX.shipping);
+      return;
+    }
+
+    // Preferimos la URL http del servidor: la data:URL no se puede persistir
+    // (revienta la cuota de localStorage) y sin imagen propia el item terminaba
+    // mostrando el diseño de otro producto.
+    const rawUrl = generated?.imagen_url || '';
+    const image  = assetUrl(rawUrl) || resolveImageSrc(generated?.imagen_generada, rawUrl);
+
+    dispatch(addItem({
+      disenoId:  generated?.id ?? null,
+      name:      data.name,
+      style:     data.style,
+      styleName: STYLES.find((s) => s.slug === data.style)?.name || '',
+      color:     data.color,
+      colorName: COLORS.find((c) => c.id === data.color)?.name || '',
+      size:      data.size,
+      price:     PRICE,
+      image,
+      imagenUrl: rawUrl,
+    }));
+    goTo(IDX.shipping);
+  }, [dispatch, data, generated, goTo, alreadyInCart]);
+
   // ── nuevo: ShippingStep llama onNext con los datos de envío ──
   const handleShippingDone = useCallback((sData) => {
     setShippingData(sData);
@@ -1358,7 +1405,8 @@ const CreateFlow = ({ initialStyle = '' }) => {
             data={data}
             generated={generated}
             onRegenerate={handleRegenerate}
-            onBuy={() => goTo(IDX.shipping)}   // ← va a shipping, no a goHome
+            onBuy={handleAddToCart}            // ← suma al carrito y va a shipping
+            inCart={alreadyInCart}
             regenerating={regenerating}
           />
         );
@@ -1384,9 +1432,9 @@ const CreateFlow = ({ initialStyle = '' }) => {
         return null;
     }
   }, [
-    currentStep, data, generated, shippingData, error, regenerating,
+    currentStep, data, generated, shippingData, error, regenerating, alreadyInCart,
     nextStep, goTo, goHome,
-    handleGenerated, handleError, handleRegenerate, handleShippingDone,
+    handleGenerated, handleError, handleRegenerate, handleShippingDone, handleAddToCart,
   ]);
 
   return (

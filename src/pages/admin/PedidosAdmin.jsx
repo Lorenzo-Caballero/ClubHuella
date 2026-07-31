@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { PAYMENTS_URL } from "../../config/env";
 
-const API = "https://clubhuella.com/payments_envios.php";
+const API = PAYMENTS_URL;
 
 const ESTADOS = [
   { value: "pendiente",      label: "Pendiente",       color: "bg-gray-400" },
