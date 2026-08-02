@@ -27,6 +27,7 @@ import {
   assetUrl,
 } from '../config/env';
 import { addItem, selectCartItems, selectLastCartItem } from '../store/cartSlice';
+import usePageMeta from '../hooks/usePageMeta';
 
 /* ============================================================
    CONFIG
@@ -594,12 +595,178 @@ const SizeStep = ({ value, onChange, onNext }) => (
 );
 
 /* ============================================================
+   CAMERA CAPTURE — cámara en vivo dentro de la página
+   ------------------------------------------------------------
+   Por qué existe: el input <input type="file" capture> depende del
+   navegador/OS — en algunos Android muestra un selector genérico
+   en vez de ir directo a la cámara, y algunos in-app browsers
+   (Instagram/Facebook/TikTok) lo ignoran por completo. Usando
+   getUserMedia mostramos NOSOTROS el visor de cámara dentro de la
+   página: funciona igual en Android e iPhone porque no depende del
+   intent nativo del sistema operativo, solo de permisos de cámara.
+   Si el navegador no soporta getUserMedia (o el usuario rechaza el
+   permiso) caemos al <input capture> de siempre como respaldo.
+   ============================================================ */
+const CameraCapture = ({ onCapture, onClose, onFallback }) => {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [status, setStatus] = useState('starting'); // starting | ready | error
+  const [errorMsg, setErrorMsg] = useState('');
+  const [facingMode, setFacingMode] = useState('environment');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function start() {
+      setStatus('starting');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facingMode } },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+        setStatus('ready');
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[CameraCapture] getUserMedia error:', err);
+        const denied = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError';
+        setErrorMsg(
+          denied
+            ? 'No pudimos acceder a la cámara. Revisá los permisos de cámara para este sitio en tu navegador.'
+            : 'No pudimos abrir la cámara en este dispositivo.'
+        );
+        setStatus('error');
+      }
+    }
+
+    start();
+
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+  }, [facingMode]);
+
+  const handleShoot = () => {
+    const video = videoRef.current;
+    if (!video || status !== 'ready') return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 1280;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const file = new File([blob], `foto-mascota-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        onCapture(file);
+      },
+      'image/jpeg',
+      0.92
+    );
+  };
+
+  const flipCamera = () => setFacingMode((m) => (m === 'environment' ? 'user' : 'environment'));
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black flex flex-col">
+      <div className="relative flex-1 overflow-hidden">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`absolute inset-0 w-full h-full object-cover ${status === 'ready' ? 'opacity-100' : 'opacity-0'}`}
+        />
+
+        {status === 'starting' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+            <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-10 h-10 border-2 border-white/30 border-t-white rounded-full" />
+            <div className="mt-4 text-sm font-semibold">Abriendo cámara...</div>
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center px-8">
+            <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center mb-4">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8">
+                <path d="M3 7h3l2-3h8l2 3h3v12H3z" /><circle cx="12" cy="13" r="3.5" />
+              </svg>
+            </div>
+            <p className="text-sm text-white/80 leading-relaxed max-w-xs">{errorMsg}</p>
+            <button
+              type="button"
+              onClick={onFallback}
+              className="mt-6 h-11 px-5 rounded-full bg-white text-neutral-900 text-sm font-semibold"
+            >
+              Elegir de otra forma
+            </button>
+          </div>
+        )}
+
+        {/* Botón cerrar */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar cámara"
+          className="absolute top-5 right-5 w-10 h-10 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M6 6l12 12M18 6l-6 6-6 6" />
+          </svg>
+        </button>
+
+        {/* Botón cambiar cámara frontal/trasera */}
+        {status === 'ready' && (
+          <button
+            type="button"
+            onClick={flipCamera}
+            aria-label="Cambiar cámara"
+            className="absolute top-5 left-5 w-10 h-10 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M17 2l4 4-4 4M3 12a9 9 0 0114.83-6.7M7 22l-4-4 4-4M21 12a9 9 0 01-14.83 6.7" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {status === 'ready' && (
+        <div className="pb-10 pt-6 flex items-center justify-center bg-black">
+          <button
+            type="button"
+            onClick={handleShoot}
+            aria-label="Tomar foto"
+            className="w-18 h-18 rounded-full border-4 border-white flex items-center justify-center active:scale-95 transition"
+            style={{ width: 72, height: 72 }}
+          >
+            <span className="block w-14 h-14 rounded-full bg-white" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ============================================================
    STEP 5 — UPLOAD
    ============================================================ */
 const UploadStep = ({ value, onChange, onNext }) => {
   const [drag, setDrag] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [cameraOpen, setCameraOpen] = useState(false);
   const fileRef = useRef(null);
   const cameraRef = useRef(null);
 
@@ -656,9 +823,11 @@ const UploadStep = ({ value, onChange, onNext }) => {
     fileRef.current?.click();
   };
 
-  const openCamera = () => {
-    if (loading) return;
-    setError('');
+  // Respaldo: dispara el <input capture> nativo. Se usa cuando el
+  // navegador no soporta getUserMedia o el usuario prefiere el flujo
+  // del sistema operativo (por ejemplo, si rechazó el permiso de cámara).
+  const openCameraFallback = () => {
+    setCameraOpen(false);
     const input = cameraRef.current;
     if (!input) return;
     // Algunos navegadores mobile solo respetan `capture` si está presente
@@ -666,6 +835,21 @@ const UploadStep = ({ value, onChange, onNext }) => {
     // en lugar del explorador de archivos.
     input.setAttribute('capture', 'environment');
     input.click();
+  };
+
+  const openCamera = () => {
+    if (loading) return;
+    setError('');
+    if (navigator.mediaDevices?.getUserMedia) {
+      setCameraOpen(true);
+    } else {
+      openCameraFallback();
+    }
+  };
+
+  const handleCameraCapture = (file) => {
+    setCameraOpen(false);
+    handleFile(file);
   };
 
   return (
@@ -1375,6 +1559,11 @@ const CreateFlow = ({ initialStyle = '' }) => {
   };
 
   const currentStep = STEPS[stepIndex].id;
+
+  usePageMeta({
+    title: `${STEPS[stepIndex].label} · Creá tu remera | Club Huella`,
+    description: 'Creá una remera personalizada con IA a partir de una foto de tu mascota. Elegí estilo, color y talle en minutos.',
+  });
 
   // Ocultar barra en steps que tienen layout propio de pantalla completa
   const showProgress = !['generating', 'result', 'shipping', 'payment'].includes(currentStep) && !error;

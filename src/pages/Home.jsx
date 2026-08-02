@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import CartButton from '../components/CartButton';
+import usePageMeta from '../hooks/usePageMeta';
 
 /* Fotos de estilo reutilizadas como muestras reales de producto */
 import vogueImg     from '../assets/styles/vogue.jpg';
@@ -499,7 +500,14 @@ const Footer = () => (
 /* ============================================================
    HOME
    ============================================================ */
-const Home = () => (
+const Home = () => {
+  usePageMeta({
+    title: 'Club Huella® | Remeras personalizadas con IA de tu mascota',
+    description:
+      'Convertí una foto de tu perro o gato en una remera única con inteligencia artificial. Elegí estilo, subí una foto y recibí tu diseño irrepetible en Argentina.',
+  });
+
+  return (
   <motion.main
     variants={containerVariants}
     initial="hidden"
@@ -516,6 +524,7 @@ const Home = () => (
     <FinalCTA />
     <Footer />
   </motion.main>
-);
+  );
+};
 
 export default Home;
