@@ -943,6 +943,16 @@ const UploadStep = ({ value, onChange, onNext }) => {
           <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">{error}</div>
         )}
       </div>
+
+      <AnimatePresence>
+        {cameraOpen && (
+          <CameraCapture
+            onCapture={handleCameraCapture}
+            onClose={() => setCameraOpen(false)}
+            onFallback={openCameraFallback}
+          />
+        )}
+      </AnimatePresence>
     </StepLayout>
   );
 };
@@ -1561,8 +1571,8 @@ const CreateFlow = ({ initialStyle = '' }) => {
   const currentStep = STEPS[stepIndex].id;
 
   usePageMeta({
-    title: `${STEPS[stepIndex].label} · Creá tu remera | Club Huella`,
-    description: 'Creá una remera personalizada con IA a partir de una foto de tu mascota. Elegí estilo, color y talle en minutos.',
+    title: `${STEPS[stepIndex].label} · Creá tu remera de mascota | Club Huella`,
+    description: 'Creá tu remera de perro o remera de gato personalizada con IA a partir de una foto de tu mascota. Elegí estilo, color y talle en minutos.',
   });
 
   // Ocultar barra en steps que tienen layout propio de pantalla completa

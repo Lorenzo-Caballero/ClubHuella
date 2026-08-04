@@ -26,6 +26,7 @@ import {
   assetUrl,
 } from '../../config/env';
 import { clearCart, selectCartItems, selectCartSubtotal } from '../../store/cartSlice';
+import { trackPixelEvent } from '../../lib/metaPixel';
 
 const STYLES_MAP = {
   vogue:      'Vogue',
@@ -171,6 +172,17 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
       if (!res.ok || !json.ok || !json.init_point) {
         throw new Error(json.error || 'No pudimos iniciar el pago. Intentá de nuevo.');
       }
+
+      // Trackeamos el inicio del checkout de Mercado Pago justo antes de salir
+      // de la SPA — es el último momento en que tenemos el pixel disponible
+      // en esta página (Mercado Pago hostea su propio checkout, sin nuestro JS).
+      trackPixelEvent('InitiateCheckout', {
+        value: total,
+        currency: 'ARS',
+        num_items: orderLines.reduce((acc, l) => acc + (l.qty || 1), 0),
+        content_type: 'product',
+        contents: orderLines.map((l) => ({ id: l.key, quantity: l.qty || 1 })),
+      });
 
       // El pedido ya quedó creado en el backend: vaciamos el carrito para que
       // no se arrastre a una compra siguiente y termine cobrando de más.
