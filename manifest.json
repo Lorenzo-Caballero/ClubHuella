@@ -1,0 +1,21 @@
+{
+  "short_name": "Club Huella",
+  "name": "Club Huella — Remeras personalizadas con IA de tu mascota",
+  "description": "Remeras de mascotas personalizadas con IA: remeras de perros, remeras de gatos y remeras para mi mascota con su propia foto. Donamos el 10% a refugios de animales de Argentina.",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "huella.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#171717",
+  "background_color": "#FBF9F4"
+}
