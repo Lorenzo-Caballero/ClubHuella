@@ -59,6 +59,30 @@ const NAV_LINKS = [
   { label: 'Cómo funciona', href: '#como-funciona' },
   { label: 'Estilos',       href: '#estilos' },
   { label: 'Nuestra causa', href: '#causa' },
+  { label: 'Preguntas frecuentes', href: '#faq' },
+];
+
+const FAQS = [
+  {
+    q: '¿Qué es Club Huella?',
+    a: 'Club Huella es una marca argentina de remeras de mascotas personalizadas con inteligencia artificial. Convertimos la foto de tu perro o gato en un diseño único para remeras de perros y remeras de gatos, y donamos el 10% de cada venta a refugios de animales.',
+  },
+  {
+    q: '¿Club Huella es una ONG de mascotas?',
+    a: 'Club Huella no es una ONG: es una marca de indumentaria con causa animal. Colaboramos con refugios y protectoras de animales de Argentina donando el 10% de cada remera vendida, que se destina a alimentación, atención veterinaria y rescate de mascotas sin hogar.',
+  },
+  {
+    q: '¿Cómo puedo hacer una donación de mascotas o ayudar a un refugio en Argentina?',
+    a: 'Una forma simple es comprando una remera personalizada de tu mascota en Club Huella: el 10% de cada compra se destina directamente a refugios y protectoras de animales de Argentina, así tu regalo se convierte también en una donación.',
+  },
+  {
+    q: '¿Qué estilos de remeras de mascotas hay disponibles?',
+    a: 'Tenemos estilos como Vogue editorial, Street urbano, Retro bootleg, Polaroid, College varsity y Anime, todos generados con IA a partir de la foto de tu perro o gato.',
+  },
+  {
+    q: '¿Hacen envíos de las remeras a todo Argentina?',
+    a: 'Sí, hacemos envíos a todo el país. También podés retirar tu remera personalizada en sucursal si estás en Mar del Plata.',
+  },
 ];
 
 /* ============================================================
@@ -391,16 +415,18 @@ const Cause = () => (
     <div className="relative max-w-4xl mx-auto px-5 md:px-8 text-center">
       <motion.div variants={reveal} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }}>
         <span className="inline-block text-6xl md:text-7xl mb-6">🐾</span>
-        <span className="block text-[11px] font-bold tracking-[0.3em] uppercase text-[#F97316] mb-4">Nuestra causa</span>
+        <span className="block text-[11px] font-bold tracking-[0.3em] uppercase text-[#F97316] mb-4">Moda solidaria · Donación a refugios de animales de Argentina</span>
         <h2 className="text-3xl md:text-5xl font-black tracking-tight leading-[1.05] mb-6 text-white">
           El 10% de cada compra
           <br />
           <span className="italic font-serif font-light text-[#a3a3a3]">ayuda a los que todavía esperan un hogar.</span>
         </h2>
         <p className="text-[#a3a3a3] text-base md:text-lg max-w-xl mx-auto leading-relaxed">
-          ClubHuella no nació solo para celebrar a tu mascota. Cada remera financia comida,
-          refugio y rescate de animales que aún buscan su familia. Tu recuerdo se convierte en
-          el comienzo de otra historia.
+          Club Huella no nació solo para celebrar a tu mascota. El 10% de cada remera se destina
+          a refugios y protectoras de animales de Argentina: comida, atención veterinaria y
+          rescate para los perros y gatos que todavía esperan una familia. No somos una ONG,
+          pero trabajamos codo a codo con las que sí lo son — así que cada donación de mascotas
+          empieza con una remera, y tu recuerdo se convierte en el comienzo de otra historia.
         </p>
         <a
           href="/crear"
@@ -443,6 +469,63 @@ const Trust = () => {
             <p className="text-sm text-neutral-600 leading-relaxed">{it.desc}</p>
           </motion.div>
         ))}
+      </div>
+    </section>
+  );
+};
+
+/* ============================================================
+   FAQ  (contenido visible, en espejo con el FAQPage JSON-LD de
+   public/index.html — sumá o editá preguntas en ambos lugares)
+   ============================================================ */
+const FAQ = () => {
+  const [openIndex, setOpenIndex] = useState(0);
+
+  return (
+    <section id="faq" className="bg-[#FBF9F4] py-16 md:py-24 border-t border-neutral-900/10">
+      <div className="max-w-3xl mx-auto px-5 md:px-8">
+        <motion.div variants={reveal} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }} className="mb-10">
+          <span className="text-[11px] font-bold tracking-[0.3em] uppercase text-[#C2410C]">Preguntas frecuentes</span>
+          <h2 className="mt-2 text-3xl md:text-4xl font-black tracking-tight">
+            Remeras de mascotas, dudas resueltas.
+          </h2>
+        </motion.div>
+
+        <div className="flex flex-col divide-y divide-neutral-900/10 border-t border-b border-neutral-900/10">
+          {FAQS.map((item, i) => {
+            const isOpen = openIndex === i;
+            return (
+              <motion.div key={item.q} variants={reveal} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-60px' }} transition={{ delay: i * 0.05 }}>
+                <button
+                  type="button"
+                  onClick={() => setOpenIndex(isOpen ? -1 : i)}
+                  aria-expanded={isOpen}
+                  className="w-full flex items-center justify-between gap-4 py-5 text-left"
+                >
+                  <span className="font-bold text-neutral-900 text-sm md:text-base">{item.q}</span>
+                  <span className={`shrink-0 w-6 h-6 rounded-full border border-neutral-900/20 flex items-center justify-center transition-transform ${isOpen ? 'rotate-45' : ''}`}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </span>
+                </button>
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.p
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                      className="overflow-hidden text-sm text-neutral-600 leading-relaxed pb-5 pr-9"
+                    >
+                      {item.a}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
@@ -502,9 +585,9 @@ const Footer = () => (
    ============================================================ */
 const Home = () => {
   usePageMeta({
-    title: 'Club Huella® | Remeras personalizadas con IA de tu mascota',
+    title: 'Remeras de Mascotas Personalizadas con IA | Club Huella®',
     description:
-      'Convertí una foto de tu perro o gato en una remera única con inteligencia artificial. Elegí estilo, subí una foto y recibí tu diseño irrepetible en Argentina.',
+      'Remeras de mascotas personalizadas con IA: remeras de perros y remeras de gatos con su propia foto, diseño único hecho en Argentina. El 10% de cada compra dona a refugios y protectoras de animales.',
   });
 
   return (
@@ -521,6 +604,7 @@ const Home = () => {
     <StylesSection />
     <Cause />
     <Trust />
+    <FAQ />
     <FinalCTA />
     <Footer />
   </motion.main>

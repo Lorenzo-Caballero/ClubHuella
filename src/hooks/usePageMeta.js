@@ -31,12 +31,13 @@ function setMetaByProperty(property, content) {
   tag.setAttribute('content', content);
 }
 
-export default function usePageMeta({ title, description } = {}) {
+export default function usePageMeta({ title, description, robots } = {}) {
   useEffect(() => {
     const prevTitle = document.title;
     const prevDescription = document.querySelector('meta[name="description"]')?.getAttribute('content');
     const prevOgTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
     const prevOgDescription = document.querySelector('meta[property="og:description"]')?.getAttribute('content');
+    const prevRobots = document.querySelector('meta[name="robots"]')?.getAttribute('content');
 
     if (title) {
       document.title = title;
@@ -48,6 +49,12 @@ export default function usePageMeta({ title, description } = {}) {
       setMetaByProperty('og:description', description);
       setMetaByName('twitter:description', description);
     }
+    // Páginas transaccionales (ej. retorno de pago) no aportan valor de
+    // búsqueda y pueden leerse como contenido fino/duplicado: se excluyen
+    // del índice pasando robots: 'noindex, nofollow' explícitamente.
+    if (robots) {
+      setMetaByName('robots', robots);
+    }
 
     // Al desmontar, restauramos lo anterior para no filtrar el título de
     // una página a otra si el usuario navega rápido.
@@ -56,6 +63,7 @@ export default function usePageMeta({ title, description } = {}) {
       if (prevDescription) setMetaByName('description', prevDescription);
       if (prevOgTitle) setMetaByProperty('og:title', prevOgTitle);
       if (prevOgDescription) setMetaByProperty('og:description', prevOgDescription);
+      if (robots && prevRobots) setMetaByName('robots', prevRobots);
     };
-  }, [title, description]);
+  }, [title, description, robots]);
 }
