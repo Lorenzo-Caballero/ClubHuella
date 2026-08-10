@@ -50,10 +50,15 @@ const STYLE_PREVIEWS = [
 ];
 
 const STEPS = [
-  { n: '01', title: 'Elegí un estilo', desc: 'Vogue, retro, street… cada uno transforma a tu mascota distinto.' },
-  { n: '02', title: 'Subí una foto',   desc: 'Una foto clara de tu compañero. La IA hace el resto.' },
-  { n: '03', title: 'Vista previa',    desc: 'Mirás el diseño antes de pagar. Si no te enamora, no compras.' },
+  { n: '01', emoji: '🎨', title: 'Elegí un estilo', desc: 'Vogue, retro, street… cada uno transforma a tu mascota distinto.' },
+  { n: '02', emoji: '📸', title: 'Subí una foto',   desc: 'Una foto clara de tu compañero. La IA hace el resto.' },
+  { n: '03', emoji: '👀', title: 'Mirá y decidí',   desc: 'Ves el diseño antes de pagar. Si no te enamora, no pagás.' },
 ];
+
+/* Fotos reales de refugios para la sección "Nuestra causa".
+   Cuando las tengas: importalas arriba y sumalas a este array —
+   la sección se acomoda sola (1 foto = panorámica, 2+ = grilla). */
+const REFUGIO_FOTOS = [];
 
 const NAV_LINKS = [
   { label: 'Cómo funciona', href: '#como-funciona' },
@@ -218,7 +223,12 @@ const Hero = () => (
     <div className="max-w-7xl mx-auto px-5 md:px-8 pt-10 pb-12 md:pt-16 md:pb-20">
       <div className="grid md:grid-cols-2 gap-10 md:gap-12 items-center">
         {/* Texto */}
-        <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.08 } } }}>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
+          className="flex flex-col items-center text-center md:items-start md:text-left"
+        >
           <motion.span
             variants={fadeUp}
             custom={0}
@@ -231,10 +241,10 @@ const Hero = () => (
           <motion.h1
             variants={fadeUp}
             custom={1}
-            className="font-black leading-[1] tracking-tight text-3xl md:text-5xl text-neutral-900"
+            className="font-black leading-[1.05] tracking-tight text-4xl md:text-5xl text-neutral-900"
           >
-            Tu mascota,{' '}
-            <span className="italic font-serif font-light text-neutral-500">en una remera única.</span>
+            Una remera única.{' '}
+            <span className="italic font-serif font-light text-neutral-500">Como tu mascota.</span>
           </motion.h1>
 
           <motion.p
@@ -245,7 +255,7 @@ const Hero = () => (
             Subí una foto, elegí un estilo y la IA hace el resto. Vista previa gratis antes de pagar.
           </motion.p>
 
-          <motion.div variants={fadeUp} custom={3} className="mt-8 flex flex-wrap items-center gap-3">
+          <motion.div variants={fadeUp} custom={3} className="mt-8 flex flex-wrap items-center justify-center md:justify-start gap-3">
             <a
               href="/crear"
               className="group inline-flex items-center justify-center gap-2 bg-[#C2410C] text-white px-8 py-4 rounded-full font-semibold text-sm tracking-wide shadow-lg shadow-[#C2410C]/30 hover:shadow-xl hover:shadow-[#C2410C]/50 hover:bg-[#B23A0A] active:scale-[0.98] transition-all duration-300"
@@ -260,13 +270,13 @@ const Hero = () => (
             </a>
           </motion.div>
 
-          <motion.div variants={fadeUp} custom={4} className="mt-8 flex items-center gap-3 text-xs text-neutral-500">
+          <motion.div variants={fadeUp} custom={4} className="mt-8 flex items-center justify-center md:justify-start gap-3 text-xs text-neutral-500">
             <div className="flex -space-x-2">
               <img src={polaroidImg} alt="" className="w-7 h-7 rounded-full object-cover border-2 border-[#FBF9F4]" />
               <img src={streetImg} alt="" className="w-7 h-7 rounded-full object-cover border-2 border-[#FBF9F4]" />
               <img src={vogueImg} alt="" className="w-7 h-7 rounded-full object-cover border-2 border-[#FBF9F4]" />
             </div>
-            <span className="font-medium">+1.200 mascotas ya tienen la suya</span>
+            <span className="font-medium">+50 mascotas ya tienen la suya</span>
           </motion.div>
         </motion.div>
 
@@ -282,7 +292,7 @@ const Hero = () => (
           <div className="relative rounded-3xl overflow-hidden aspect-[4/5] shadow-2xl shadow-neutral-900/10">
             <img
               src={heroModeloImg}
-              alt="Modelo con remera personalizada de mascota"
+              alt="Remera Club Huella estampada con el diseño de una mascota, puesta en un cliente real"
               className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
             />
             {/* hint de click */}
@@ -316,7 +326,7 @@ const Hero = () => (
 const HowItWorks = () => (
   <section id="como-funciona" className="bg-white py-16 md:py-24">
     <div className="max-w-5xl mx-auto px-5 md:px-8">
-      <motion.div variants={reveal} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }} className="mb-10 md:mb-14">
+      <motion.div variants={reveal} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }} className="mb-10 md:mb-14 text-center md:text-left">
         <span className="text-[11px] font-bold tracking-[0.3em] uppercase text-[#C2410C]">Simple de verdad</span>
         <h2 className="mt-2 text-3xl md:text-4xl font-black tracking-tight">En 3 pasos, 2 minutos.</h2>
       </motion.div>
@@ -330,16 +340,19 @@ const HowItWorks = () => (
             whileInView="visible"
             viewport={{ once: true, margin: '-60px' }}
             transition={{ delay: i * 0.1 }}
-            className="relative"
+            className="relative text-center md:text-left"
           >
-            <div className="text-5xl font-black text-[#e5e5e5] mb-3">{s.n}</div>
+            <div className="text-5xl mb-3">{s.emoji}</div>
+            <span className="block text-[10px] font-black tracking-[0.3em] uppercase text-[#C2410C] mb-1.5">
+              Paso {s.n}
+            </span>
             <h3 className="text-lg font-bold text-neutral-900 mb-2">{s.title}</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">{s.desc}</p>
           </motion.div>
         ))}
       </div>
 
-      <motion.div variants={reveal} initial="hidden" whileInView="visible" viewport={{ once: true }} className="mt-12">
+      <motion.div variants={reveal} initial="hidden" whileInView="visible" viewport={{ once: true }} className="mt-12 text-center md:text-left">
         <a
           href="/crear"
           className="inline-flex items-center justify-center gap-2 bg-neutral-900 text-white px-8 py-4 rounded-full font-semibold text-sm tracking-wide hover:bg-[#262626] active:scale-[0.98] transition"
@@ -417,17 +430,32 @@ const Cause = () => (
         <span className="inline-block text-6xl md:text-7xl mb-6">🐾</span>
         <span className="block text-[11px] font-bold tracking-[0.3em] uppercase text-[#F97316] mb-4">Moda solidaria · Donación a refugios de animales de Argentina</span>
         <h2 className="text-3xl md:text-5xl font-black tracking-tight leading-[1.05] mb-6 text-white">
-          El 10% de cada compra
+          El 10% de cada remera
           <br />
-          <span className="italic font-serif font-light text-[#a3a3a3]">ayuda a los que todavía esperan un hogar.</span>
+          <span className="italic font-serif font-light text-[#a3a3a3]">va directo a refugios de animales.</span>
         </h2>
         <p className="text-[#a3a3a3] text-base md:text-lg max-w-xl mx-auto leading-relaxed">
           Club Huella no nació solo para celebrar a tu mascota. El 10% de cada remera se destina
           a refugios y protectoras de animales de Argentina: comida, atención veterinaria y
           rescate para los perros y gatos que todavía esperan una familia. No somos una ONG,
           pero trabajamos codo a codo con las que sí lo son — así que cada donación de mascotas
-          empieza con una remera, y tu recuerdo se convierte en el comienzo de otra historia.
+          empieza con una remera: tu mascota en el pecho, y otra huella con una nueva oportunidad.
         </p>
+
+        {REFUGIO_FOTOS.length > 0 && (
+          <div className={`mt-10 mx-auto gap-3 ${REFUGIO_FOTOS.length === 1 ? 'max-w-lg' : 'grid grid-cols-3 max-w-2xl'}`}>
+            {REFUGIO_FOTOS.map((foto, i) => (
+              <img
+                key={i}
+                src={foto}
+                alt="Animales en un refugio de Argentina esperando una familia"
+                loading="lazy"
+                className={`rounded-2xl object-cover w-full shadow-2xl shadow-black/40 ${REFUGIO_FOTOS.length === 1 ? 'aspect-[3/2]' : 'aspect-square'}`}
+              />
+            ))}
+          </div>
+        )}
+
         <a
           href="/crear"
           className="mt-10 inline-flex items-center justify-center gap-2 bg-white text-neutral-900 px-8 py-4 rounded-full font-semibold text-sm tracking-wide hover:bg-[#f5f5f5] active:scale-[0.98] transition"

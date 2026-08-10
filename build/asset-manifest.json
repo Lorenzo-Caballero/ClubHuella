@@ -1,7 +1,7 @@
 {
   "files": {
-    "main.css": "/static/css/main.0d875257.css",
-    "main.js": "/static/js/main.6b650f94.js",
+    "main.css": "/static/css/main.03e2995a.css",
+    "main.js": "/static/js/main.09bff0de.js",
     "static/media/granulado.jpg": "/static/media/granulado.fc1f3f49cb1cffd3bb99.jpg",
     "static/media/retro.jpg": "/static/media/retro.234efc05ae89cfab0bc7.jpg",
     "static/media/vogue.jpg": "/static/media/vogue.979d556a0d2fd6a146cd.jpg",
@@ -13,11 +13,11 @@
     "static/media/remeraBlanca.png": "/static/media/remeraBlanca.9ee08e9a33e8f1c10cc2.png",
     "static/media/MercadoLogo.png": "/static/media/MercadoLogo.b804a12e0ed2f04249d1.png",
     "index.html": "/index.html",
-    "main.0d875257.css.map": "/static/css/main.0d875257.css.map",
-    "main.6b650f94.js.map": "/static/js/main.6b650f94.js.map"
+    "main.03e2995a.css.map": "/static/css/main.03e2995a.css.map",
+    "main.09bff0de.js.map": "/static/js/main.09bff0de.js.map"
   },
   "entrypoints": [
-    "static/css/main.0d875257.css",
-    "static/js/main.6b650f94.js"
+    "static/css/main.03e2995a.css",
+    "static/js/main.09bff0de.js"
   ]
 }
