@@ -211,12 +211,13 @@ function describir_mascota_detallado($imageInlineData)
         . '"color_ojos" (string: precise eye color, e.g. "miel dorado", "marrón oscuro", "azul hielo"), '
         . '"forma_orejas" (string: e.g. "caídas y peludas", "erectas y puntiagudas", "semierguidas"), '
         . '"nariz" (string: color and shape, e.g. "nariz negra ancha", "nariz rosada pequeña"), '
+        . '"forma_cabeza_rostro" (string: head/face GEOMETRY — skull shape, muzzle length and width, jaw width, forehead slope, cheek fullness; e.g. "cabeza redondeada, hocico corto y ancho, mejillas marcadas" or "cráneo alargado, hocico largo y estrecho, frente plana" — this is the single most important trait for the viewer to recognize the exact individual, independent of breed), '
         . '"rasgos_distintivos" (string: unique identifying marks, spots, patches, or features), '
         . '"expresion" (string: current expression, e.g. "alegre con lengua afuera", "sereno y majestuoso", "atento y curioso"), '
         . '"tamano_estimado" (string: "pequeño", "mediano", "grande"), '
         . '"postura" (string: describe pose if body is visible). '
         . 'Be extremely specific — this description will be used to recreate this exact pet in illustration form. '
-        . 'Example: {"especie":"perro","raza":"Golden Retriever","tiene_cuerpo":false,"color_pelaje":"dorado cremoso con destellos más claros en el hocico","patron_pelaje":"sólido","textura_pelaje":"largo y ondulado","color_ojos":"miel oscuro cálido","forma_orejas":"caídas medianas cubiertas de pelo ondulado","nariz":"nariz negra ancha","rasgos_distintivos":"mancha blanca pequeña en el pecho, cejas expresivas","expresion":"alegre con boca abierta y lengua asomando","tamano_estimado":"grande","postura":null}';
+        . 'Example: {"especie":"perro","raza":"Golden Retriever","tiene_cuerpo":false,"color_pelaje":"dorado cremoso con destellos más claros en el hocico","patron_pelaje":"sólido","textura_pelaje":"largo y ondulado","color_ojos":"miel oscuro cálido","forma_orejas":"caídas medianas cubiertas de pelo ondulado","nariz":"nariz negra ancha","forma_cabeza_rostro":"cabeza ancha y redondeada, hocico corto y robusto, mejillas llenas, frente ligeramente abombada","rasgos_distintivos":"mancha blanca pequeña en el pecho, cejas expresivas","expresion":"alegre con boca abierta y lengua asomando","tamano_estimado":"grande","postura":null}';
 
     $model = defined('GEMINI_TEXT_MODEL') ? GEMINI_TEXT_MODEL : 'gemini-2.0-flash';
     $url   = GEMINI_ENDPOINT . $model . ':generateContent?key=' . GEMINI_API_KEY;
@@ -251,6 +252,7 @@ function describir_mascota_detallado($imageInlineData)
         'color_ojos'        => null,
         'forma_orejas'      => null,
         'nariz'             => null,
+        'forma_cabeza_rostro' => null,
         'rasgos_distintivos'=> null,
         'expresion'         => null,
         'tamano_estimado'   => null,
@@ -360,6 +362,9 @@ function build_optimized_prompt($estilo, $nombreMascota, $analisis, $estiloDesc 
     if (!empty($analisis['nariz'])) {
         $petIdentityBlock .= "- Nose: {$analisis['nariz']}\n";
     }
+    if (!empty($analisis['forma_cabeza_rostro'])) {
+        $petIdentityBlock .= "- HEAD/FACE GEOMETRY (critical for recognition): {$analisis['forma_cabeza_rostro']}\n";
+    }
     if (!empty($analisis['rasgos_distintivos'])) {
         $petIdentityBlock .= "- UNIQUE MARKS (critical): {$analisis['rasgos_distintivos']}\n";
     }
@@ -457,9 +462,11 @@ function build_optimized_prompt($estilo, $nombreMascota, $analisis, $estiloDesc 
         . "The name should feel like it belongs to the design, not pasted on top.\n\n";
 
     $antiGenericBlock = "=== CRITICAL FIDELITY RULE ===\n"
+        . "This is a LIKENESS PRESERVATION task, not a reinterpretation: treat the customer pet photo as ground truth and only re-skin its art style, never its identity. "
         . "FAIL CONDITION: If the output shows a GENERIC {$especieLabel} that does not match the specific pet described above, the generation has FAILED. "
-        . "A viewer who knows this pet must be able to immediately recognize it. "
-        . "The coat color pattern, eye color, and unique markings are NON-NEGOTIABLE identity markers.\n\n";
+        . "A viewer who knows this pet must be able to immediately recognize it at a glance, the same way they would recognize it in a different photo. "
+        . "The coat color pattern, eye color, unique markings, AND the head/face geometry (skull and muzzle shape, proportions) are NON-NEGOTIABLE identity markers — do not default to a generic breed-standard head shape if the photo shows different proportions. "
+        . "Do not idealize, simplify, slim down, or \"cute-ify\" the pet's real proportions.\n\n";
 
     $bgBlock = $isDark
         ? "=== BACKGROUND TONE (this design prints on a BLACK shirt) ===\n"
@@ -524,9 +531,10 @@ function call_gemini_image($prompt, $parts, $retries = 2)
             "responseModalities" => ["IMAGE"],   // ✅ solo IMAGE — TEXT no es necesario y puede causar errores
             // ✅ CORRECCIÓN: temperature=1.0 (el máximo) hacía que el modelo se alejara demasiado
             // de la foto real de la mascota en cada generación (baja fidelidad/consistencia).
-            // Se baja a 0.6 para priorizar la fidelidad a la identidad de la mascota y a las
-            // instrucciones del prompt, conservando margen creativo para el estilo artístico.
-            "temperature"        => 0.6,
+            // Bajado a 0.35: prioriza al máximo la fidelidad a la identidad real de la mascota
+            // y a las instrucciones del prompt. Si algún estilo queda "soso"/poco creativo,
+            // conviene subir esto un poco (0.45-0.55) antes que tocar la identidad de la mascota.
+            "temperature"        => 0.35,
             "imageConfig"        => ["aspectRatio" => GEMINI_ASPECT_RATIO],  // fuerza vertical 3:4
         ],
     ];
