@@ -380,9 +380,13 @@ function build_optimized_prompt($estilo, $nombreMascota, $analisis, $estiloDesc 
             . "The customer photo shows the full body. Preserve the exact anatomy, proportions, posture and all physical details from the photo. Recreate the complete pose.\n\n";
     } elseif ($raza) {
         $bodyBlock = "=== BODY RULE ===\n"
-            . "The photo shows only the face/head. Reconstruct a complete, anatomically accurate body for a {$raza} {$especieLabel}. "
-            . "The FACE must be a perfect portrait match to the customer photo — all coat colors, markings, eye color, ear shape, and distinctive features must match exactly. "
-            . "Body proportions must be true to the {$raza} breed.\n\n";
+            . "The photo shows only the face/head. Reconstruct a complete, anatomically accurate body for a {$raza} {$especieLabel}, "
+            . "and whatever new pose, outfit or attire the style requires — but the HEAD must be copied from the customer photo, not "
+            . "reinterpreted or redrawn as a standard breed-type head. Copy its exact proportions: muzzle length and width relative to the "
+            . "skull, how round or narrow the face is, how big the eyes look relative to the face, the exact angle and set of the ears. "
+            . "Do NOT substitute a generic, idealized, or stock-photo-cute version of this breed's head — this specific individual animal's "
+            . "head geometry, coat colors, markings, eye color, and ear shape must match exactly, as if the same head were composited onto "
+            . "the new body. Body proportions must be true to the {$raza} breed.\n\n";
     } else {
         $bodyBlock = "=== BODY RULE ===\n"
             . "The photo shows only the face/head and the breed is unknown. Create a centered artistic portrait focused on the face, "
@@ -477,6 +481,27 @@ function build_optimized_prompt($estilo, $nombreMascota, $analisis, $estiloDesc 
           . "Keep the OVERALL background light / white and clean so it blends into the white shirt. Style textures and effects are welcome, but the base background stays light.\n"
           . "Do NOT use a dark or black background.\n\n";
 
+    // Checklist corto de identidad repetido al final: el prompt completo es largo y con
+    // mucha instrucción de estilo/composición de por medio, así que lo crítico de identidad
+    // se repite acá, lo más cerca posible del final, porque es lo que más peso tiene a la
+    // hora de generar (recency). No agregar más bloques de estilo DESPUÉS de este.
+    $faceLockItems = array_filter([
+        $analisis['color_pelaje']      ?? null,
+        $analisis['patron_pelaje']     ?? null,
+        $analisis['color_ojos']        ?? null,
+        $analisis['forma_orejas']      ?? null,
+        $analisis['forma_cabeza_rostro'] ?? null,
+        $analisis['rasgos_distintivos'] ?? null,
+        $analisis['expresion']         ?? null,
+    ]);
+    $faceLockBlock = '';
+    if ($faceLockItems) {
+        $faceLockBlock = "=== FINAL CHECK BEFORE GENERATING (highest priority, re-read this) ===\n"
+            . "This exact animal's head/face, copied from the customer photo, not a generic {$especieLabel}: "
+            . implode('; ', $faceLockItems) . ". "
+            . "Verify these match before finalizing the image — this overrides any conflicting stylistic default.\n\n";
+    }
+
     $prompt = $petIdentityBlock
         . $bodyBlock
         . $styleBlock
@@ -485,6 +510,7 @@ function build_optimized_prompt($estilo, $nombreMascota, $analisis, $estiloDesc 
         . $nameBlock
         . $antiGenericBlock
         . $bgBlock
+        . $faceLockBlock
         . "FINAL TARGET: A single, complete, print-ready pet artwork on a {$bgWord}-toned background. Premium quality, clean composition, not overloaded with details. Instantly recognizable as THIS specific pet rendered in the reference style.";
 
     return $prompt;

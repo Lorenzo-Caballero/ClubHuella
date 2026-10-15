@@ -177,3 +177,20 @@ that's treating the symptom and will bring back the original bug.
   confirm with Lorenzo/Nahuel whether both were actually rotated on OpenAI's/Mercado Pago's
   dashboards before treating this as closed — removing code doesn't invalidate a key. See
   "Team & how we work" above for the handling rule going forward.
+- **Oct 2026, round 2**: even with the fixes above live, a `vogue` result still didn't look
+  like the actual pet (right coat colors, wrong head/muzzle shape and ears — a generic cute
+  version of the breed instead of that specific animal). Likely cause: `build_optimized_prompt()`
+  is long and front-loads the identity block, but a lot of style/composition instruction comes
+  after it — with styles like `vogue` that require a full pose/outfit/background rebuild (the
+  reference pack literally dresses pets in blazers/berets, see `referencias/vogue/`), identity
+  can get out-attended by everything else. Fix: `bodyBlock`'s breed-reconstruction case now
+  explicitly forbids substituting a generic/stock-cute version of the breed's head, and a short
+  identity checklist (`$faceLockBlock`) is repeated at the very end of the prompt, right before
+  `FINAL TARGET` — last-position instructions tend to get the most weight. If likeness is still
+  off after this, the next things to try, in order of how surgical they are: (1) tighten
+  `forma_cabeza_rostro` prompting in `describir_mascota_detallado()` to extract more specific
+  geometric detail, (2) drop `temperature` further, (3) cut the number of style reference images
+  (`ref_images_for_style()`'s `$max`) so the customer photo isn't competing with as many other
+  images for attention. Don't expect pixel-perfect likeness on styles that substantially rebuild
+  pose/body/clothing — there's a real ceiling here tied to the image model's capabilities, not
+  just prompt wording.
