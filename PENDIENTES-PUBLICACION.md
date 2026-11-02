@@ -1,7 +1,7 @@
 # Pendientes antes de publicar Club Huella
 
 - [x] Rotar la contraseña de la base de datos: marcado como listo por indicación del usuario; no verificado desde este entorno.
-- [ ] Resolver la autenticación MySQL y migrar la conexión al `config.php` privado. Las variables `DB_HOST`, `DB_NAME`, `DB_USER` y `DB_PASSWORD` ya están definidas según la revisión del usuario, pero al probar la versión segura de `conexion.php` el hosting respondió que no se pudo conectar. Se restauró la conexión anterior para mantener el backend operativo; revisar que `DB_PASSWORD` coincida con la contraseña vigente del usuario MySQL asignado y volver a desplegar el conector seguro. No compartir ni subir credenciales.
+- [x] Migrar la conexión MySQL para leer `DB_HOST`, `DB_NAME`, `DB_USER` y `DB_PASSWORD` del `config.php` privado. Tras corregir la contraseña MySQL, el endpoint `admin_session` responde correctamente y `listar` rechaza las consultas sin sesión. No se copiaron credenciales al repositorio.
 - [x] `ADMIN_USERNAME` y `ADMIN_PASSWORD_HASH` configurados en el `config.php` privado según indicó el usuario; falta validar el inicio de sesión después de subir el código nuevo. No guardar ni compartir la clave.
 - [ ] Configurar `MP_ACCESS_TOKEN` y `ENVIA_API_KEY` en el `config.php` privado del servidor.
 - [ ] Definir el mismo precio vigente en frontend (`REACT_APP_TSHIRT_PRICE`) y backend (`CLUB_HUELLA_PRECIO_REMERA`). El valor de desarrollo actual es ARS 44.900.
