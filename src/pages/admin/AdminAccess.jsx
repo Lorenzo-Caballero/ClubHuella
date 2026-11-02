@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FiLock, FiLogIn } from 'react-icons/fi';
-import PedidosAdmin from './PedidosAdmin';
+import UnifiedAdminPanel from './UnifiedAdminPanel';
 import { fetchAdminSession, loginAdmin, logoutAdmin } from '../../lib/adminSession';
 
 export default function AdminAccess() {
@@ -51,7 +51,7 @@ export default function AdminAccess() {
   }
 
   if (!ready) return <main className="grid min-h-screen place-items-center bg-[#f4f0e8] text-sm text-[#777166]">Verificando acceso…</main>;
-  if (authenticated) return <PedidosAdmin onLogout={handleLogout} />;
+  if (authenticated) return <UnifiedAdminPanel onLogout={handleLogout} />;
 
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[#f4f0e8] px-5 py-10 text-[#33342f]">

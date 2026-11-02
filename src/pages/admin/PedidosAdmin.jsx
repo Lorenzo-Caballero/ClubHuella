@@ -318,7 +318,7 @@ function PedidoModal({ pedido, onClose, onSaved }) {
 }
 
 /* ─── Panel principal ─────────────────────────────────────────── */
-export default function PedidosAdmin({ onLogout = () => {} }) {
+export default function PedidosAdmin({ embedded = false, onLogout = () => {} }) {
   const [pedidos, setPedidos]   = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState("");
@@ -353,7 +353,7 @@ export default function PedidosAdmin({ onLogout = () => {} }) {
   const totalFacturado = pedidos.reduce((s, p) => s + Number(p.total || 0), 0);
 
   return (
-    <div className="min-h-screen bg-[#0f1115] text-white px-4 py-8 font-sans">
+    <div className={`${embedded ? 'min-h-0 rounded-2xl' : 'min-h-screen'} bg-[#0f1115] text-white px-4 py-6 font-sans`}>
       <div className="max-w-7xl mx-auto">
 
         {/* Header */}
@@ -368,7 +368,7 @@ export default function PedidosAdmin({ onLogout = () => {} }) {
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setModal("create")} className="px-5 py-2 rounded-xl bg-yellow-400 text-black font-bold text-sm hover:bg-yellow-300 transition">+ Nuevo pedido</button>
-            <button onClick={onLogout} className="inline-flex items-center gap-2 rounded-xl border border-[#2a2f3a] px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-[#171a21]" aria-label="Cerrar sesión"><FiLogOut /> Salir</button>
+            {!embedded && <button onClick={onLogout} className="inline-flex items-center gap-2 rounded-xl border border-[#2a2f3a] px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-[#171a21]" aria-label="Cerrar sesión"><FiLogOut /> Salir</button>}
           </div>
         </div>
 
