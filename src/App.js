@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 
 import Home from "./pages/Home";
@@ -27,7 +27,6 @@ const App = () => {
         <Route path="/" element={<Home />} />
         <Route path="/crear" element={<CreateFlow />} />
         <Route path="/gracias" element={<Gracias />} />
-        <Route path="/admin" element={<Navigate to="/admin-pedidos" replace />} />
         <Route path="/admin-pedidos" element={<AdminAccess />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/static/css/main.bc7bcee0.css",
-    "main.js": "/static/js/main.b4a258d3.js",
+    "main.js": "/static/js/main.d072d985.js",
     "static/media/granulado.jpg": "/static/media/granulado.fc1f3f49cb1cffd3bb99.jpg",
     "static/media/retro.jpg": "/static/media/retro.234efc05ae89cfab0bc7.jpg",
     "static/media/vogue.jpg": "/static/media/vogue.979d556a0d2fd6a146cd.jpg",
@@ -14,10 +14,10 @@
     "static/media/MercadoLogo.png": "/static/media/MercadoLogo.b804a12e0ed2f04249d1.png",
     "index.html": "/index.html",
     "main.bc7bcee0.css.map": "/static/css/main.bc7bcee0.css.map",
-    "main.b4a258d3.js.map": "/static/js/main.b4a258d3.js.map"
+    "main.d072d985.js.map": "/static/js/main.d072d985.js.map"
   },
   "entrypoints": [
     "static/css/main.bc7bcee0.css",
-    "static/js/main.b4a258d3.js"
+    "static/js/main.d072d985.js"
   ]
 }
