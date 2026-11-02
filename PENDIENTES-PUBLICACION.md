@@ -1,7 +1,7 @@
 # Pendientes antes de publicar Club Huella
 
 - [x] Rotar la contraseña de la base de datos: marcado como listo por indicación del usuario; no verificado desde este entorno.
-- [ ] Migrar la conexión de base de datos que actualmente conserva Hostinger en `public_html/conexion.php` al `config.php` privado: definir `DB_HOST`, `DB_NAME`, `DB_USER` y `DB_PASSWORD` sin compartirlos ni subirlos al repositorio. La versión segura de `conexion.php` de esta rama quedó lista, pero en producción se restauró temporalmente la conexión anterior porque el `config.php` no define esas variables.
+- [ ] Resolver la autenticación MySQL y migrar la conexión al `config.php` privado. Las variables `DB_HOST`, `DB_NAME`, `DB_USER` y `DB_PASSWORD` ya están definidas según la revisión del usuario, pero al probar la versión segura de `conexion.php` el hosting respondió que no se pudo conectar. Se restauró la conexión anterior para mantener el backend operativo; revisar que `DB_PASSWORD` coincida con la contraseña vigente del usuario MySQL asignado y volver a desplegar el conector seguro. No compartir ni subir credenciales.
 - [x] `ADMIN_USERNAME` y `ADMIN_PASSWORD_HASH` configurados en el `config.php` privado según indicó el usuario; falta validar el inicio de sesión después de subir el código nuevo. No guardar ni compartir la clave.
 - [ ] Configurar `MP_ACCESS_TOKEN` y `ENVIA_API_KEY` en el `config.php` privado del servidor.
 - [ ] Definir el mismo precio vigente en frontend (`REACT_APP_TSHIRT_PRICE`) y backend (`CLUB_HUELLA_PRECIO_REMERA`). El valor de desarrollo actual es ARS 44.900.
