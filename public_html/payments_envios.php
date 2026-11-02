@@ -16,6 +16,9 @@
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
 date_default_timezone_set('America/Argentina/Buenos_Aires');
+if (!defined('PRECIO_REMERA_ARS')) {
+    define('PRECIO_REMERA_ARS', max(1, (int)(getenv('CLUB_HUELLA_PRECIO_REMERA') ?: 44900)));
+}
 
 /* ================= CONFIG + DB ================= */
 require_once __DIR__ . "/../config.php";
@@ -53,20 +56,34 @@ if (!defined('ASSETS_BASE_URL')) {
 
 /* ================= CORS ================= */
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$requestAction = $_GET['action'] ?? '';
 $allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "https://clubhuella.com",
     "https://www.clubhuella.com",
+    "https://olivedrab-bat-725875.hostingersite.com",
 ];
-if ($origin && in_array($origin, $allowedOrigins, true)) {
+$adminAllowedOrigins = [
+    "https://clubhuella.com",
+    "https://www.clubhuella.com",
+    "https://olivedrab-bat-725875.hostingersite.com",
+];
+$adminRoutes = ['admin_session', 'admin_login', 'admin_logout', 'listar', 'pedido', 'archivo_pedido', 'crear', 'actualizar', 'eliminar'];
+$corsAllowedOrigins = in_array($requestAction, $adminRoutes, true) ? $adminAllowedOrigins : $allowedOrigins;
+if ($origin && in_array($origin, $corsAllowedOrigins, true)) {
     header("Access-Control-Allow-Origin: $origin");
+    header("Vary: Origin");
+    header("Access-Control-Allow-Credentials: true");
 }
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Headers: Content-Type, X-CSRF-Token");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    if ($origin && !in_array($origin, $corsAllowedOrigins, true)) {
+        http_response_code(403);
+        exit;
+    }
     http_response_code(200);
     echo json_encode(["ok" => true]);
     exit;
@@ -76,8 +93,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 function sendJSON(array $data, int $status = 200): void {
     http_response_code($status);
     header("Content-Type: application/json; charset=utf-8");
+    header("Cache-Control: no-store, private");
+    header("X-Content-Type-Options: nosniff");
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
     exit;
+}
+
+function start_admin_session(): void {
+    if (session_status() === PHP_SESSION_ACTIVE) return;
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    session_name('clubhuella_admin');
+    $isSecure = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'secure' => $isSecure,
+        'httponly' => true,
+        'samesite' => 'None',
+    ]);
+    session_start();
+}
+
+function admin_session_is_valid(): bool {
+    if (empty($_SESSION['clubhuella_admin_authenticated']) || empty($_SESSION['clubhuella_admin_last_seen'])) return false;
+    if (time() - (int)$_SESSION['clubhuella_admin_last_seen'] > 1800) {
+        $_SESSION = [];
+        session_destroy();
+        return false;
+    }
+    $_SESSION['clubhuella_admin_last_seen'] = time();
+    return true;
+}
+
+function require_admin_session(bool $requireCsrf = false): void {
+    start_admin_session();
+    if (!admin_session_is_valid()) sendJSON(["ok" => false, "error" => "Se requiere iniciar sesión como administrador."], 401);
+    if ($requireCsrf) {
+        $sentToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+        $knownToken = $_SESSION['clubhuella_admin_csrf'] ?? '';
+        if (!$sentToken || !$knownToken || !hash_equals($knownToken, $sentToken)) {
+            sendJSON(["ok" => false, "error" => "La sesión venció. Recargá el panel e intentá de nuevo."], 419);
+        }
+    }
+}
+
+function valid_admin_password_hash(): bool {
+    if (!defined('ADMIN_PASSWORD_HASH') || !is_string(ADMIN_PASSWORD_HASH) || ADMIN_PASSWORD_HASH === '') return false;
+    $info = password_get_info(ADMIN_PASSWORD_HASH);
+    return !empty($info['algo']);
 }
 
 /* ── Almacén propio de metadata de pagos (independiente de MP) ── */
@@ -109,6 +174,69 @@ function meta_de_pago($payment): array {
     return $meta;
 }
 
+/* Convierte el carrito a unidades físicas: la tabla pedidos representa una
+   remera por fila y no tiene una columna cantidad. */
+function lineas_fisicas_pedido(array $meta): array {
+    $rawLines = $meta['line_items'] ?? null;
+    $legacy = !is_array($rawLines) || !$rawLines;
+    if ($legacy) {
+        $rawLines = [[
+            'diseno_id' => $meta['diseno_id'] ?? '',
+            'nombre_mascota' => $meta['nombre_mascota'] ?? 'Tu mascota',
+            'estilo' => $meta['estilo'] ?? '',
+            'color' => $meta['color'] ?? 'blanca',
+            'talle' => $meta['talle'] ?? 'M',
+            'imagen_url' => $meta['imagen_url'] ?? '',
+            'cantidad' => 1,
+            'precio_unitario' => $meta['precio_remera'] ?? 42990,
+        ]];
+    }
+
+    $lines = [];
+    foreach ($rawLines as $lineIndex => $line) {
+        if (!is_array($line)) continue;
+        $quantity = (int)($line['cantidad'] ?? 1);
+        if ($quantity < 1 || $quantity > 20) {
+            throw new InvalidArgumentException('La cantidad por diseño debe estar entre 1 y 20.');
+        }
+        $unitPrice = (int)($line['precio_unitario'] ?? $line['precio_remera'] ?? $meta['precio_remera'] ?? 42990);
+        if ($unitPrice < 1 || $unitPrice > 1000000) {
+            throw new InvalidArgumentException('El precio de una remera no es válido.');
+        }
+        $color = strtolower((string)($line['color'] ?? 'blanca'));
+        $size = strtoupper((string)($line['talle'] ?? 'M'));
+        if (!in_array($color, ['blanca', 'negra'], true) || !in_array($size, ['S', 'M', 'L', 'XL'], true)) {
+            throw new InvalidArgumentException('El color o talle de una remera no es válido.');
+        }
+        $style = strtolower(trim((string)($line['estilo'] ?? '')));
+        $colorPorEstilo = [
+            'vogue' => ['blanca', 'negra'], 'retro' => ['blanca', 'negra'],
+            'collage' => ['blanca', 'negra'], 'minimal' => ['blanca', 'negra'],
+            'streetwear' => ['negra'], 'rap-tee' => ['negra'],
+        ];
+        if (!isset($colorPorEstilo[$style]) || !in_array($color, $colorPorEstilo[$style], true)) {
+            throw new InvalidArgumentException('El estilo o color de una remera no está habilitado para impresión.');
+        }
+        for ($copy = 0; $copy < $quantity; $copy++) {
+            if (count($lines) >= 20) {
+                throw new InvalidArgumentException('El carrito admite hasta 20 remeras por compra.');
+            }
+            $lines[] = [
+                'line_ref' => $legacy ? null : sprintf('L%03d', count($lines) + 1),
+                'diseno_id' => (string)($line['diseno_id'] ?? ''),
+                'imagen_url' => (string)($line['imagen_url'] ?? ''),
+                'nombre_mascota' => (string)($line['nombre_mascota'] ?? 'Tu mascota'),
+                'estilo' => (string)($line['estilo'] ?? ''),
+                'color' => $color,
+                'talle' => $size,
+                'precio_remera' => $unitPrice,
+            ];
+        }
+    }
+    if (!$lines) throw new InvalidArgumentException('El carrito no contiene remeras válidas.');
+    return $lines;
+}
+
 /* Convierte una ruta relativa guardada en BD ("generados/x.jpg") en URL absoluta.
    Si ya viene como URL absoluta (http/https) o como dataURL, la deja tal cual. */
 function url_imagen(?string $ruta): ?string {
@@ -133,11 +261,13 @@ function resolver_imagen_pedido(array $pedido): array {
 }
 
 function logg(mixed $data): void {
+    $logPath = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'clubhuella-payments.log';
     file_put_contents(
-        __DIR__ . "/debug.txt",
+        $logPath,
         date("Y-m-d H:i:s ") . json_encode($data, JSON_UNESCAPED_UNICODE) . PHP_EOL,
-        FILE_APPEND
+        FILE_APPEND | LOCK_EX
     );
+    @chmod($logPath, 0600);
 }
 
 /* ── Whitelist de columnas editables de "pedidos" (evita SQLi por nombre de columna) ── */
@@ -202,9 +332,9 @@ function generar_envio_envia(array $meta, string $enviaKey): array {
             "type"          => "box",
             "content"       => "remera personalizada",
             "amount"        => 1,
-            "declaredValue" => (int)($meta["precio_remera"] ?? 42990),
-            "weight"        => 0.4,
-            "dimensions"    => ["length" => 30, "width" => 25, "height" => 5],
+            "declaredValue" => (int)($meta["precio_remera"] ?? 44900),
+            "weight"        => max(0.4, 0.4 * (int)($meta["cantidad_remeras"] ?? 1)),
+            "dimensions"    => ["length" => 30, "width" => 25, "height" => min(25, 5 + 2 * max(0, (int)($meta["cantidad_remeras"] ?? 1) - 1))],
         ]],
         "shipment" => [
             "type"    => 1,
@@ -253,104 +383,208 @@ function registrar_pedido_desde_pago($payment, PDO $pdo, string $enviaKey): arra
 
     $paymentId = (string)$payment->id;
 
-    $stmt = $pdo->prepare("SELECT id, tracking_number FROM pedidos WHERE mp_payment_id = ? LIMIT 1");
-    $stmt->execute([$paymentId]);
-    $existing = $stmt->fetch();
-    if ($existing) {
-        logg(["REGISTRAR_YA_EXISTE" => $paymentId]);
-        return [
-            'ok'        => true,
-            'estado'    => 'ya_registrado',
-            'pedido_id' => (int)$existing['id'],
-            'tracking'  => $existing['tracking_number'],
-        ];
-    }
-
     $meta        = meta_de_pago($payment);
     $tipoEntrega = $meta["tipo_entrega"] ?? 'domicilio';
     $precioEnvio = (int)($meta["precio_envio"] ?? 0);
+    $lines       = lineas_fisicas_pedido($meta);
+    $baseRef     = (string)($payment->external_reference ?? $meta['diseno_id'] ?? $paymentId);
+    $orderIds    = [];
+    $trackingNum = null;
 
-    $call = $pdo->prepare("CALL sp_registrar_pedido(
-        ?, ?, ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?, ?,
-        ?, ?
-    )");
+    // Serializa eventos simultáneos de webhook/retorno para que no dupliquen filas.
+    $pdo->beginTransaction();
+    try {
+        $lock = $pdo->prepare("SELECT id, external_ref FROM pedidos WHERE mp_payment_id = ? FOR UPDATE");
+        $lock->execute([$paymentId]);
+        $existingRefs = [];
+        foreach ($lock->fetchAll() as $row) $existingRefs[(string)$row['external_ref']] = (int)$row['id'];
 
-    $call->execute([
-        $paymentId,
-        $payment->order->id ?? null,
-        $payment->external_reference ?? ($meta["diseno_id"] ?? null),
-        $meta["diseno_id"]      ?? null,
-        $meta["imagen_url"]     ?? null,
-        $meta["nombre_mascota"] ?? 'Tu mascota',
-        $meta["estilo"]         ?? '',
-        $meta["color"]          ?? 'blanca',
-        $meta["talle"]          ?? 'M',
-        (int)($meta["precio_remera"] ?? 42990),
-        $precioEnvio,
-        (int)($meta["total"] ?? 42990),
-        $meta["nombre"]   ?? 'Cliente',
-        $meta["telefono"] ?? null,
-        $tipoEntrega,
-        $meta["direccion"] ?? null,
-        null,
-        null,
-        null,
-        $meta["cp"]        ?? null,
-        $meta["ciudad"]    ?? null,
-        $meta["provincia"] ?? null,
-        $meta["carrier"]   ?? null,
-        $meta["service"]   ?? null,
-    ]);
-    $call->closeCursor();
+        $call = $pdo->prepare("CALL sp_registrar_pedido(
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?,
+            ?, ?
+        )");
 
-    $stmt = $pdo->prepare("SELECT id FROM pedidos WHERE mp_payment_id = ? LIMIT 1");
-    $stmt->execute([$paymentId]);
-    $pedidoId = (int)($stmt->fetchColumn() ?: 0);
+        foreach ($lines as $index => $line) {
+            $lineRef = $line['line_ref']
+                ? substr($baseRef, 0, 112) . '-' . $line['line_ref']
+                : $baseRef;
+            if (isset($existingRefs[$lineRef])) {
+                $orderIds[] = $existingRefs[$lineRef];
+                continue;
+            }
 
-    logg(["REGISTRAR_OK" => ["payment" => $paymentId, "pedido_id" => $pedidoId]]);
+            // El envío se cobra una sola vez y se asigna a la primera fila para
+            // que la suma de los pedidos coincida con el total pagado.
+            $lineShipping = $index === 0 ? $precioEnvio : 0;
+            $lineTotal = (int)$line['precio_remera'] + $lineShipping;
+            $call->execute([
+                $paymentId,
+                $payment->order->id ?? null,
+                $lineRef,
+                $line['diseno_id'] ?: null,
+                $line['imagen_url'] ?: null,
+                $line['nombre_mascota'] ?: 'Tu mascota',
+                $line['estilo'],
+                $line['color'],
+                $line['talle'],
+                (int)$line['precio_remera'],
+                $lineShipping,
+                $lineTotal,
+                $meta['nombre'] ?? 'Cliente',
+                $meta['telefono'] ?? null,
+                $tipoEntrega,
+                $meta['calle'] ?? $meta['direccion'] ?? null,
+                $meta['numero'] ?? null,
+                $meta['piso_depto'] ?? null,
+                $meta['info_adicional'] ?? null,
+                $meta['cp'] ?? null,
+                $meta['ciudad'] ?? null,
+                $meta['provincia'] ?? null,
+                $meta['carrier'] ?? null,
+                $meta['service'] ?? null,
+            ]);
+            $call->closeCursor();
+
+            $find = $pdo->prepare("SELECT id FROM pedidos WHERE mp_payment_id = ? AND external_ref = ? ORDER BY id DESC LIMIT 1");
+            $find->execute([$paymentId, $lineRef]);
+            $orderId = (int)($find->fetchColumn() ?: 0);
+            if (!$orderId) throw new RuntimeException('No se pudo recuperar una línea recién registrada.');
+            $orderIds[] = $orderId;
+            $existingRefs[$lineRef] = $orderId;
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
 
     $trackingNum = null;
     if ($tipoEntrega === 'domicilio' && $precioEnvio > 0) {
-        $claim = $pdo->prepare(
-            "UPDATE pedidos SET shipped_at = NOW()
-             WHERE mp_payment_id = ? AND shipped_at IS NULL"
-        );
+        $claim = $pdo->prepare("UPDATE pedidos SET shipped_at = NOW() WHERE mp_payment_id = ? AND shipped_at IS NULL");
         $claim->execute([$paymentId]);
-
-        if ($claim->rowCount() === 1) {
-            [$trackingNum, $trackUrl, $labelUrl] = generar_envio_envia($meta, $enviaKey);
-
+        if ($claim->rowCount() > 0) {
+            $shippingMeta = $meta;
+            $shippingMeta['cantidad_remeras'] = count($lines);
+            $shippingMeta['precio_remera'] = array_sum(array_column($lines, 'precio_remera'));
+            [$trackingNum, $trackUrl, $labelUrl] = generar_envio_envia($shippingMeta, $enviaKey);
             if ($trackingNum) {
-                $pdo->prepare(
-                    "UPDATE pedidos
-                     SET tracking_number = ?, tracking_url = ?, label_url = ?
-                     WHERE mp_payment_id = ?"
-                )->execute([$trackingNum, $trackUrl, $labelUrl, $paymentId]);
+                $pdo->prepare("UPDATE pedidos SET tracking_number = ?, tracking_url = ?, label_url = ? WHERE mp_payment_id = ?")
+                    ->execute([$trackingNum, $trackUrl, $labelUrl, $paymentId]);
             } else {
                 $pdo->prepare("UPDATE pedidos SET shipped_at = NULL WHERE mp_payment_id = ?")
                     ->execute([$paymentId]);
             }
         }
+        $track = $pdo->prepare("SELECT tracking_number FROM pedidos WHERE mp_payment_id = ? AND tracking_number IS NOT NULL LIMIT 1");
+        $track->execute([$paymentId]);
+        $trackingNum = $track->fetchColumn() ?: null;
     }
 
-    /* >>> PUNTO 2 DEL PLAN: AVISO AL ESTAMPADOR <<< */
+    logg(["REGISTRAR_OK" => ["payment" => $paymentId, "pedido_ids" => $orderIds]]);
 
     return [
         'ok'        => true,
         'estado'    => 'registrado',
-        'pedido_id' => $pedidoId,
+        'pedido_id' => $orderIds[0] ?? 0,
+        'pedido_ids' => $orderIds,
+        'cantidad'  => count($orderIds),
         'tracking'  => $trackingNum,
     ];
 }
 
 /* ================= ROUTER ================= */
 // $action se define UNA sola vez, antes de cualquier bloque que la use.
-$action = $_GET['action'] ?? '';
+$action = $requestAction;
+
+if (in_array($action, $adminRoutes, true)) start_admin_session();
+
+if ($action === 'admin_session') {
+    $csrf = $_SESSION['clubhuella_admin_csrf'] ?? '';
+    if ($csrf === '') {
+        try { $csrf = bin2hex(random_bytes(32)); }
+        catch (Throwable $e) { sendJSON(["ok" => false, "error" => "No se pudo inicializar la sesión."], 500); }
+        $_SESSION['clubhuella_admin_csrf'] = $csrf;
+    }
+    sendJSON([
+        "ok" => true,
+        "authenticated" => admin_session_is_valid(),
+        "csrf_token" => $csrf,
+    ]);
+}
+
+if ($action === 'admin_login') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') sendJSON(["ok" => false, "error" => "Método no permitido."], 405);
+    if (!$origin || !in_array($origin, $adminAllowedOrigins, true)) sendJSON(["ok" => false, "error" => "Origen no permitido."], 403);
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($input)) sendJSON(["ok" => false, "error" => "Body inválido."], 400);
+    $sentToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    $knownToken = $_SESSION['clubhuella_admin_csrf'] ?? '';
+    if (!$sentToken || !$knownToken || !hash_equals($knownToken, $sentToken)) {
+        sendJSON(["ok" => false, "error" => "Recargá el inicio de sesión e intentá de nuevo."], 419);
+    }
+    $lockedUntil = (int)($_SESSION['clubhuella_admin_locked_until'] ?? 0);
+    if ($lockedUntil > time()) sendJSON(["ok" => false, "error" => "Demasiados intentos. Probá nuevamente en unos minutos."], 429);
+    if (!defined('ADMIN_USERNAME') || !valid_admin_password_hash()) {
+        sendJSON(["ok" => false, "error" => "El acceso administrativo todavía no está configurado en el servidor."], 503);
+    }
+    $username = trim((string)($input['username'] ?? ''));
+    $password = (string)($input['password'] ?? '');
+    $valid = hash_equals((string)ADMIN_USERNAME, $username) && password_verify($password, ADMIN_PASSWORD_HASH);
+    if (!$valid) {
+        $failures = (int)($_SESSION['clubhuella_admin_failures'] ?? 0) + 1;
+        $_SESSION['clubhuella_admin_failures'] = $failures;
+        if ($failures >= 5) {
+            $_SESSION['clubhuella_admin_locked_until'] = time() + 900;
+            $_SESSION['clubhuella_admin_failures'] = 0;
+        }
+        sendJSON(["ok" => false, "error" => "Usuario o contraseña incorrectos."], 401);
+    }
+
+    session_regenerate_id(true);
+    $_SESSION = [
+        'clubhuella_admin_authenticated' => true,
+        'clubhuella_admin_last_seen' => time(),
+        'clubhuella_admin_failures' => 0,
+        'clubhuella_admin_csrf' => bin2hex(random_bytes(32)),
+    ];
+    sendJSON(["ok" => true, "authenticated" => true, "csrf_token" => $_SESSION['clubhuella_admin_csrf']]);
+}
+
+if ($action === 'admin_logout') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') sendJSON(["ok" => false, "error" => "Método no permitido."], 405);
+    if (!$origin || !in_array($origin, $adminAllowedOrigins, true)) sendJSON(["ok" => false, "error" => "Origen no permitido."], 403);
+    require_admin_session(true);
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', [
+            'expires' => time() - 42000,
+            'path' => $params['path'],
+            'domain' => $params['domain'],
+            'secure' => $params['secure'],
+            'httponly' => $params['httponly'],
+            'samesite' => $params['samesite'] ?? 'None',
+        ]);
+    }
+    session_destroy();
+    sendJSON(["ok" => true]);
+}
+
+if (in_array($action, ['listar', 'pedido', 'archivo_pedido', 'crear', 'actualizar', 'eliminar'], true)) {
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    $writeActions = ['crear', 'actualizar', 'eliminar'];
+    $expectedMethod = in_array($action, $writeActions, true) ? 'POST' : 'GET';
+    if ($method !== $expectedMethod) sendJSON(["ok" => false, "error" => "Método no permitido."], 405);
+    if ($method === 'POST' && (!$origin || !in_array($origin, $adminAllowedOrigins, true))) {
+        sendJSON(["ok" => false, "error" => "Origen no permitido."], 403);
+    }
+    require_admin_session($method === 'POST');
+}
 
 // Defensa: si MP pega al archivo sin action pero con params de webhook,
 // lo tratamos como webhook igual.
@@ -390,6 +624,57 @@ if ($action === "pedido") {
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) sendJSON(["ok" => false, "error" => "No encontrado"], 404);
     sendJSON(resolver_imagen_pedido($row));
+}
+
+/* Descarga autenticada del original o del PNG DTF vinculado a un pedido. */
+if ($action === 'archivo_pedido') {
+    $id = (int)($_GET['id'] ?? 0);
+    $type = (string)($_GET['tipo'] ?? '');
+    if ($id < 1 || !in_array($type, ['original', 'dtf'], true)) {
+        sendJSON(["ok" => false, "error" => "Pedido o tipo de archivo inválido."], 400);
+    }
+
+    $stmt = $pdo->prepare("SELECT p.*, d.imagen_generada AS diseno_imagen_generada
+        FROM pedidos p
+        LEFT JOIN disenos_mascotas d ON d.id = p.diseno_id
+        WHERE p.id = ? LIMIT 1");
+    $stmt->execute([$id]);
+    $order = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$order) sendJSON(["ok" => false, "error" => "Pedido no encontrado."], 404);
+
+    if ($type === 'original') {
+        $relativePath = trim((string)($order['imagen_url'] ?? ''));
+        if ($relativePath === '') $relativePath = trim((string)($order['diseno_imagen_generada'] ?? ''));
+    } else {
+        $relativePath = trim((string)($order['archivo_impresion'] ?? ''));
+        if ($relativePath === '') $relativePath = 'generados/impresion_pedido_' . $id . '_v2.png';
+    }
+
+    // Solo se sirven archivos locales bajo public_html. No aceptar URL remotas,
+    // data URLs, traversal ni archivos fuera del sitio.
+    if ($relativePath === '' || preg_match('#^(https?:)?//#i', $relativePath) || str_starts_with($relativePath, 'data:')) {
+        sendJSON(["ok" => false, "error" => "El pedido no tiene ese archivo guardado."], 404);
+    }
+    $base = realpath(__DIR__);
+    $filePath = realpath(__DIR__ . '/' . ltrim($relativePath, '/'));
+    if (!$base || !$filePath || !is_file($filePath) || strpos($filePath, $base . DIRECTORY_SEPARATOR) !== 0) {
+        sendJSON(["ok" => false, "error" => "El archivo no está disponible."], 404);
+    }
+    $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+    $allowedExtensions = $type === 'dtf' ? ['png'] : ['jpg', 'jpeg', 'png', 'webp'];
+    if (!in_array($extension, $allowedExtensions, true)) {
+        sendJSON(["ok" => false, "error" => "Formato de archivo no permitido."], 415);
+    }
+    $mimeTypes = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
+    $downloadName = 'clubhuella_pedido_' . $id . '_' . $type . '.' . $extension;
+    $disposition = ($_GET['inline'] ?? '') === '1' ? 'inline' : 'attachment';
+    header('Content-Type: ' . ($mimeTypes[$extension] ?? 'application/octet-stream'));
+    header('Content-Length: ' . filesize($filePath));
+    header('Content-Disposition: ' . $disposition . '; filename="' . $downloadName . '"');
+    header('Cache-Control: no-store, private');
+    header('X-Content-Type-Options: nosniff');
+    readfile($filePath);
+    exit;
 }
 
 /* ============================================================
@@ -471,6 +756,8 @@ if ($action === "rate") {
     $telefono  = trim($input["telefono"]  ?? '000000');
     $direccion = trim($input["direccion"] ?? 'Sin dirección');
     $ciudad    = trim($input["ciudad"]    ?? 'Buenos Aires');
+    $quantity  = max(1, min(20, (int)($input['cantidad_remeras'] ?? 1)));
+    $declaredValue = max(1, (int)($input['subtotal'] ?? (PRECIO_REMERA_ARS * $quantity)));
 
     if (!$cp) sendJSON(["ok" => false, "error" => "Falta el código postal"]);
 
@@ -487,13 +774,13 @@ if ($action === "rate") {
         ],
         "packages" => [[
             "type" => "box", "content" => "remera personalizada",
-            "amount" => 1, "declaredValue" => 42990, "weight" => 0.4,
-            "dimensions" => ["length" => 30, "width" => 25, "height" => 5],
+            "amount" => 1, "declaredValue" => $declaredValue, "weight" => 0.4 * $quantity,
+            "dimensions" => ["length" => 30, "width" => 25, "height" => min(25, 5 + 2 * ($quantity - 1))],
         ]],
         "shipment" => ["type" => 1, "carrier" => "correoargentino"],
     ];
 
-    logg(["RATE_REQUEST" => $body]);
+    logg(["RATE_REQUEST" => ["cp" => $cp, "cantidad" => $quantity, "subtotal" => $declaredValue]]);
 
     $ch = curl_init("https://api.envia.com/ship/rate/");
     curl_setopt_array($ch, [
@@ -544,59 +831,84 @@ if ($action === "pagar") {
         if (!isset($input[$f])) sendJSON(["ok" => false, "error" => "Falta el campo: $f"]);
     }
 
-    $precioRemera = (float)($input["precio_remera"] ?? 42990);
-    $precioEnvio  = (float)($input["precio_envio"]  ?? 0);
-    $total        = (float)($input["total"]          ?? ($precioRemera + $precioEnvio));
-    $nombreMasc   = $input["nombre_mascota"] ?? 'Tu mascota';
-    $estilo       = $input["estilo"]         ?? '';
-    $color        = $input["color"]          ?? '';
-    $talle        = $input["talle"]          ?? '';
-    $tipoEntrega  = $input["tipo_entrega"]   ?? 'domicilio';
-    $carrier      = $input["carrier"]        ?? '';
-    $service      = $input["service"]        ?? '';
-    $externalRef  = $input["diseno_id"]      ?? (string)time();
+    try {
+        $lines = lineas_fisicas_pedido([
+            'line_items' => $input['items'] ?? [],
+            'diseno_id' => $input['diseno_id'] ?? '',
+            'imagen_url' => $input['imagen_url'] ?? '',
+            'nombre_mascota' => $input['nombre_mascota'] ?? 'Tu mascota',
+            'estilo' => $input['estilo'] ?? '',
+            'color' => $input['color'] ?? 'blanca',
+            'talle' => $input['talle'] ?? 'M',
+            'precio_remera' => PRECIO_REMERA_ARS,
+        ]);
+    } catch (InvalidArgumentException $e) {
+        sendJSON(["ok" => false, "error" => $e->getMessage()], 400);
+    }
 
-    $items = [[
-        "id"          => "remera-" . $externalRef,
-        "title"       => "Remera Club Huella · {$nombreMasc} · " . strtoupper($estilo),
-        "description" => "Talle $talle · " . ucfirst($color) . " · Algodón 240g DTF premium",
-        "quantity"    => 1,
-        "unit_price"  => $precioRemera,
-        "currency_id" => "ARS",
-    ]];
+    $shirtTotal = array_sum(array_column($lines, 'precio_remera'));
+    foreach ($lines as $line) {
+        if ((int)$line['precio_remera'] !== PRECIO_REMERA_ARS) {
+            sendJSON(["ok" => false, "error" => "El precio de la remera está desactualizado. Recargá la página e intentá de nuevo."], 409);
+        }
+    }
+    $precioEnvio = max(0, (int)($input["precio_envio"] ?? 0));
+    $total = $shirtTotal + $precioEnvio;
+    if ((int)$input['precio_remera'] !== $shirtTotal || (int)$input['total'] !== $total) {
+        sendJSON(["ok" => false, "error" => "El total del carrito cambió. Volvé a revisar el envío antes de pagar."], 409);
+    }
 
+    $tipoEntrega  = $input["tipo_entrega"] ?? 'domicilio';
+    $carrier      = $input["carrier"] ?? '';
+    $service      = $input["service"] ?? '';
+    try { $externalRef = 'CH-' . bin2hex(random_bytes(12)); }
+    catch (Throwable $e) { $externalRef = 'CH-' . uniqid('', true); }
+
+    $items = [];
+    foreach ($lines as $index => $line) {
+        $items[] = [
+            "id"          => "remera-" . ($line['diseno_id'] ?: ($index + 1)),
+            "title"       => "Remera Club Huella · " . ($line['nombre_mascota'] ?: 'Tu mascota') . " · " . strtoupper($line['estilo']),
+            "description" => "Talle {$line['talle']} · " . ucfirst($line['color']) . " · Algodón 240g DTF premium",
+            "quantity"    => 1,
+            "unit_price"  => (int)$line['precio_remera'],
+            "currency_id" => "ARS",
+        ];
+    }
     if ($precioEnvio > 0) {
         $items[] = [
-            "id"          => "envio-" . $externalRef,
-            "title"       => "Envío " . strtoupper($carrier) . " · " . $service,
-            "quantity"    => 1,
-            "unit_price"  => $precioEnvio,
+            "id" => "envio-" . $externalRef,
+            "title" => "Envío " . strtoupper($carrier) . " · " . $service,
+            "quantity" => 1,
+            "unit_price" => $precioEnvio,
             "currency_id" => "ARS",
         ];
     }
 
     $metadata = [
-        "diseno_id"      => $externalRef,
-        "imagen_url"     => $input["imagen_url"]     ?? '',
-        "nombre_mascota" => $nombreMasc,
-        "estilo"         => $estilo,
-        "color"          => $color,
-        "talle"          => $talle,
-        "precio_remera"  => $precioRemera,
-        "precio_envio"   => $precioEnvio,
-        "total"          => $total,
-        "tipo_entrega"   => $tipoEntrega,
-        "carrier"        => $carrier,
-        "service"        => $service,
-        "nombre"         => $input["nombre"]    ?? '',
-        "telefono"       => $input["telefono"]  ?? '',
-        "direccion"      => $input["direccion"] ?? '',
-        "ciudad"         => $input["ciudad"]    ?? '',
-        "cp"             => $input["cp"]        ?? '',
-        "provincia"      => $input["provincia"] ?? '',
+        "diseno_id" => $lines[0]['diseno_id'],
+        "imagen_url" => $lines[0]['imagen_url'],
+        "nombre_mascota" => $lines[0]['nombre_mascota'],
+        "estilo" => $lines[0]['estilo'],
+        "color" => $lines[0]['color'],
+        "talle" => $lines[0]['talle'],
+        "line_items" => $lines,
+        "precio_remera" => $shirtTotal,
+        "precio_envio" => $precioEnvio,
+        "total" => $total,
+        "tipo_entrega" => $tipoEntrega,
+        "carrier" => $carrier,
+        "service" => $service,
+        "nombre" => $input["nombre"] ?? '',
+        "telefono" => $input["telefono"] ?? '',
+        "direccion" => $input["direccion"] ?? '',
+        "ciudad" => $input["ciudad"] ?? '',
+        "cp" => $input["cp"] ?? '',
+        "provincia" => $input["provincia"] ?? '',
+        "cantidad_remeras" => count($lines),
     ];
 
-    logg(["PAGAR_INPUT" => $metadata]);
+    logg(["PAGAR_INPUT" => ["external_ref" => $externalRef, "cantidad" => count($lines), "total" => $total]]);
     guardar_meta_pago($externalRef, $metadata);
 
     try {
@@ -605,7 +917,7 @@ if ($action === "pagar") {
         $preference = $client->create([
             "items"              => $items,
             "external_reference" => $externalRef,
-            "metadata"           => $metadata,
+            "metadata"           => ["cart_ref" => $externalRef],
             "notification_url"   => URL_WEBHOOK,
             "back_urls"          => [
                 "success" => URL_SUCCESS . "&external_ref=" . urlencode($externalRef),
@@ -657,10 +969,12 @@ if ($action === "webhook") {
 
         $res = registrar_pedido_desde_pago($payment, $pdo, $ENVIA_API);
         logg(["WEBHOOK_RESULT" => $res]);
-        if (!empty($res['pedido_id'])) {
-            $metaDtf = meta_de_pago($payment);
-            try { $dtf = procesar_dtf_pedido((int)$res['pedido_id'], $metaDtf, $pdo); logg(["DTF" => $dtf, "META_KEYS" => array_keys($metaDtf)]); }
-            catch (Throwable $e) { logg(["DTF_ERROR" => $e->getMessage()]); }
+        $dtfResult = procesar_dtf_pedidos($res['pedido_ids'] ?? [$res['pedido_id'] ?? 0], $pdo);
+        logg(["DTF_BATCH_RESULT" => $dtfResult, "pedido_ids" => $res['pedido_ids'] ?? []]);
+        if (empty($dtfResult['ok'])) {
+            // Mercado Pago reintentará la notificación si el arte o el email
+            // no quedó listo. El registro del pedido y los archivos son idempotentes.
+            sendJSON(["ok" => false, "error" => "Pago registrado; el envío al estampador quedó pendiente."], 503);
         }
 
         sendJSON(["ok" => true, "result" => $res]);
@@ -706,15 +1020,16 @@ if ($action === "success") {
 
     $res = registrar_pedido_desde_pago($payment, $pdo, $ENVIA_API);
     logg(["SUCCESS_RESULT" => $res]);
-    if (!empty($res['pedido_id'])) {
-        $metaDtf = meta_de_pago($payment);
-        try { $dtf = procesar_dtf_pedido((int)$res['pedido_id'], $metaDtf, $pdo); logg(["DTF" => $dtf, "META_KEYS" => array_keys($metaDtf)]); }
-        catch (Throwable $e) { logg(["DTF_ERROR" => $e->getMessage()]); }
-    }
+    $dtfResult = procesar_dtf_pedidos($res['pedido_ids'] ?? [$res['pedido_id'] ?? 0], $pdo);
+    logg(["DTF_BATCH_RESULT" => $dtfResult, "pedido_ids" => $res['pedido_ids'] ?? []]);
 
     $meta = meta_de_pago($payment);
     $params = http_build_query([
         "status"   => "approved",
+        "payment_id" => (string)$payment->id,
+        "external_reference" => (string)($payment->external_reference ?? $externalRef ?? ''),
+        "pedido_id" => (string)($res['pedido_id'] ?? ''),
+        "total" => (string)($payment->transaction_amount ?? $meta['total'] ?? ''),
         "tracking" => $res['tracking'] ?? '',
         "nombre"   => $meta["nombre_mascota"] ?? '',
         "tipo"     => $meta["tipo_entrega"]   ?? 'domicilio',

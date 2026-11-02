@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSelector } from 'react-redux';
 import {
@@ -10,8 +10,8 @@ import {
   FiTruck,
 } from 'react-icons/fi';
 import { MdOutlineStorefront } from 'react-icons/md';
-import { RATE_URL, TSHIRT_PRICE, PICKUP_FULL_ADDRESS } from '../../config/env';
-import { selectCartSubtotal } from '../../store/cartSlice';
+import { RATE_URL, PICKUP_FULL_ADDRESS, MULTI_ITEM_CHECKOUT_ENABLED } from '../../config/env';
+import { selectCartCount, selectCartItems, selectCartSubtotal } from '../../store/cartSlice';
 
 /* ============================================================
    SHIPPING STEP — Club Huella
@@ -26,8 +26,6 @@ import { selectCartSubtotal } from '../../store/cartSlice';
      onNext       → fn(shippingData) — avanza al PaymentStep
      onBack       → fn() — vuelve al ResultStep
    ============================================================ */
-
-const PRICE_TSHIRT = TSHIRT_PRICE;
 
 /* ── UI Primitives ─────────────────────────────────────────── */
 
@@ -274,11 +272,14 @@ const PriceSummary = ({ shipCost, subtotal }) => {
    MAIN COMPONENT
    ================================================================ */
 
-const ShippingStep = ({ data, generated, onNext, onBack }) => {
+const ShippingStep = ({ data, generated, onNext, onBack, onAddMore }) => {
   // El subtotal sale del carrito (Redux). Fallback al precio unitario por si
   // se entra al paso sin haber pasado por "Agregar al carrito".
   const cartSubtotal = useSelector(selectCartSubtotal);
-  const subtotal = cartSubtotal > 0 ? cartSubtotal : PRICE_TSHIRT;
+  const cartCount = useSelector(selectCartCount);
+  const cartItems = useSelector(selectCartItems);
+  const subtotal = cartSubtotal;
+  const canCheckoutCart = cartCount > 0 && (cartCount === 1 || MULTI_ITEM_CHECKOUT_ENABLED);
 
   const [method, setMethod]                   = useState('domicilio');
   const [form, setForm]                       = useState({
@@ -297,6 +298,13 @@ const ShippingStep = ({ data, generated, onNext, onBack }) => {
   const [selectedCarrier, setSelectedCarrier] = useState(null);
   const [rateLoading, setRateLoading]         = useState(false);
   const [rateError, setRateError]             = useState('');
+
+  // A change to cart contents invalidates the previous parcel quote.
+  useEffect(() => {
+    setRates(null);
+    setSelectedCarrier(null);
+    setRateError('');
+  }, [cartItems]);
 
   const updateForm = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -329,6 +337,8 @@ const ShippingStep = ({ data, generated, onNext, onBack }) => {
         telefono:  form.phone.trim(),
         direccion: `${form.street.trim()} ${form.streetNumber.trim()}${form.apt ? ` ${form.apt}` : ''}`.trim(),
         ciudad:    form.city.trim(),
+        cantidad_remeras: cartCount,
+        subtotal: cartSubtotal,
       };
 
       const res  = await fetch(RATE_URL, {
@@ -351,12 +361,13 @@ const ShippingStep = ({ data, generated, onNext, onBack }) => {
     } finally {
       setRateLoading(false);
     }
-  }, [form]);
+  }, [cartCount, cartSubtotal, form]);
 
-  const canContinue =
+  const canContinue = canCheckoutCart && (
     method === 'tienda'
       ? pickupName.trim().length > 0
-      : homeFormComplete && selectedCarrier != null;
+      : homeFormComplete && selectedCarrier != null
+  );
 
   const handleContinue = () => {
     if (method === 'tienda') {
@@ -403,7 +414,7 @@ const ShippingStep = ({ data, generated, onNext, onBack }) => {
         className="mb-7"
       >
         <span className="block text-[11px] font-bold tracking-[0.25em] uppercase text-neutral-500 mb-3">
-          07 · Entrega
+          03 · Entrega
         </span>
         <h1 className="text-3xl md:text-4xl font-black tracking-tight text-neutral-900 leading-[1.05]">
           ¿Cómo recibís<br />tu remera?
@@ -411,6 +422,14 @@ const ShippingStep = ({ data, generated, onNext, onBack }) => {
         <p className="mt-3 text-neutral-500 text-[15px] leading-relaxed">
           Elegí envío a domicilio o retiro en el local sin costo.
         </p>
+        <p className="mt-2 text-sm font-semibold text-neutral-700">
+          Tu carrito: {cartCount} {cartCount === 1 ? 'remera' : 'remeras'} · ${subtotal.toLocaleString('es-AR')}
+        </p>
+        {cartCount > 1 && !MULTI_ITEM_CHECKOUT_ENABLED && (
+          <p className="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs leading-relaxed text-amber-900">
+            El pago conjunto de varias remeras requiere habilitar el soporte correspondiente en el servidor de pagos.
+          </p>
+        )}
       </motion.div>
 
       <div className="flex-1 flex flex-col gap-6">
@@ -694,6 +713,15 @@ const ShippingStep = ({ data, generated, onNext, onBack }) => {
           <PrimaryButton onClick={handleContinue} disabled={!canContinue}>
             Ir al pago <ArrowRight />
           </PrimaryButton>
+          {onAddMore && (
+            <button
+              type="button"
+              onClick={onAddMore}
+              className="w-full text-center text-sm font-bold text-[#8D3414] hover:text-[#C2410C] transition"
+            >
+              + Seguir comprando · agregar otra remera
+            </button>
+          )}
           <button
             type="button"
             onClick={onBack}
@@ -710,4 +738,3 @@ const ShippingStep = ({ data, generated, onNext, onBack }) => {
 };
 
 export default ShippingStep;
-export { PRICE_TSHIRT };

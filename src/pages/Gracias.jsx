@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 
 import { API_BASE_URL } from '../config/env';
 import { trackPixelEventOnce } from '../lib/metaPixel';
+import { clearCart, selectCartCount, selectCartItems } from '../store/cartSlice';
 import usePageMeta from '../hooks/usePageMeta';
 
 /* ============================================================
@@ -56,6 +58,9 @@ function StatusIcon({ variant }) {
 const Gracias = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const cartItems = useSelector(selectCartItems);
+  const cartCount = useSelector(selectCartCount);
   const [orderTotal, setOrderTotal] = useState(null);
 
   const status = (searchParams.get('status') || searchParams.get('collection_status') || '').toLowerCase();
@@ -114,9 +119,28 @@ const Gracias = () => {
       value,
       currency: 'ARS',
       content_type: 'product',
+      content_ids: cartItems.map((item) => String(item.disenoId || item.style || 'remera-personalizada')),
+      contents: cartItems.map((item) => ({
+        id: String(item.disenoId || item.style || 'remera-personalizada'),
+        quantity: item.qty || 1,
+        item_price: Number(item.price) || undefined,
+      })),
+      num_items: cartCount,
       order_id: pedidoId || merchantOrderId || paymentId,
     });
-  }, [isApproved, dedupeId, totalParam, orderTotal, pedidoId, merchantOrderId, paymentId]);
+  }, [isApproved, dedupeId, totalParam, orderTotal, pedidoId, merchantOrderId, paymentId, cartItems, cartCount]);
+
+  useEffect(() => {
+    if (!isApproved || !paymentId) return;
+    const key = `ch_cart_cleared_${paymentId}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+    } catch {
+      // Keep the cart lifecycle best-effort when browser storage is unavailable.
+    }
+    dispatch(clearCart());
+  }, [dispatch, isApproved, paymentId]);
 
   const heading = useMemo(() => {
     if (isApproved) return '¡Listo! Tu pedido está en marcha.';

@@ -60,6 +60,11 @@ if (!defined('GEMINI_TEXT_MODEL')) {
 if (!defined('GEMINI_ASPECT_RATIO')) {
     define('GEMINI_ASPECT_RATIO', '3:4');   // vertical para remera; editable en config.php
 }
+if (!defined('GEMINI_IMAGE_SIZE')) {
+    // 4K entrega 3584×4800 px en 3:4: alcanza para preparar una estampa frontal
+    // cercana a 30×40 cm a 300 ppp. Puede cambiarse desde config.php.
+    define('GEMINI_IMAGE_SIZE', '4K');
+}
 
 if (!defined('GEMINI_ENDPOINT')) {
     define('GEMINI_ENDPOINT', 'https://generativelanguage.googleapis.com/v1beta/models/');
@@ -431,23 +436,20 @@ function build_optimized_prompt($estilo, $nombreMascota, $analisis, $estiloDesc 
     $styleBlock .= "\n\n";
 
     $perEstilo = [
-        'vogue'      => "STYLE DIRECTIVE: Clean Vogue-inspired editorial cover artwork on a pure white background. Minimal premium fashion magazine aesthetic. Use elegant black serif typography, refined spacing, soft studio lighting, and very few decorative elements. The pet must be the main subject, centered, elegant and recognizable. Avoid busy collages, neon effects, grunge, excessive overlays, heavy textures, dark backgrounds, random fashion accessories, or too many graphic details.",
-        'retro'      => "STYLE DIRECTIVE: single-color risograph halftone print, exactly like the reference image. The ENTIRE pet portrait rendered in ONE warm ink color (burnt orange / salmon / brick red) as coarse halftone grain dots on a light background. No full-color photo: monochrome duotone riso texture only. Heavy visible grain. Minimal composition, generous negative space. Small understated typography for the pet name. Warm, analog, printed-zine feel.",
-        'streetwear' => "STYLE DIRECTIVE: Premium streetwear hype graphic. Bold oversized sans-serif typography. Urban energy, aggressive layout. High contrast dark background. Layered graphic elements. Supreme/Palace/Off-White aesthetic adapted for pet culture.",
+        'vogue'      => "STYLE DIRECTIVE: Premium fashion-magazine cover with a refined pet portrait, elegant serif typography, careful spacing and restrained details. Keep all essential lettering and the pet's face clear at print size. Avoid busy collage, grunge, heavy textures or random accessories.",
+        'retro'      => "STYLE DIRECTIVE: Single-ink risograph portrait, matching the Granulado reference. Render the portrait and name as coarse, visible halftone grain in ONE warm ink color. No full-color photo. Minimal composition with generous negative space and an analog printed-zine feeling.",
+        'streetwear' => "STYLE DIRECTIVE: Premium urban streetwear graphic with bold oversized sans-serif typography, confident layered composition and strong contrast. Design for a black garment: dark negative areas should merge into the fabric, while all important pet details and lettering use bright, high-contrast inks.",
         'college'    => "STYLE DIRECTIVE: Varsity college athletic tee. Arched team-name lettering, jersey numerals. Twill patch aesthetic. Navy/red/gold color scheme typical of university apparel. EST. year below name. Shield or crest element.",
-        'collage'    => "STYLE DIRECTIVE: elegant polaroid triptych, exactly like the reference. The pet name in refined cursive script, above a bold serif UPPERCASE phrase. Below: THREE instant-photo (polaroid) frames in a straight, perfectly aligned horizontal row — NOT rotated. CRITICAL RULE: all three frames contain THE SAME single black-and-white photo of the pet, repeated identically three times. One photo derived faithfully from the customer photo (same pet, same pose), duplicated in the three frames. The same small handwritten caption under each frame. Clean white background, generous whitespace. NEVER invent a different animal or a different photo per frame: it is one photo shown three times. Output ONLY the flat printed graphic: no person, no body, no shirt, no fabric.",
-        'minimal'    => "STYLE DIRECTIVE: ONE single instant photo (polaroid), exactly like the reference. A single white polaroid frame containing a soft, natural photo of the pet, with a short handwritten caption on the bottom white border (the pet name or a tiny phrase). Centered, vast clean empty background around it. Nothing else in the composition.",
+        'collage'    => "STYLE DIRECTIVE: Elegant Polaroid triptych matching the reference. Put the pet name in refined cursive above a bold uppercase phrase. Below it, place THREE aligned, unrotated instant-photo frames. All three contain the SAME faithful black-and-white photo of this pet, repeated identically, with the same small handwritten caption. Never invent another animal or another photo. Keep the outer background the same tone as the selected garment. On a black garment use light lettering and light frame borders; on a white garment use dark lettering and clean light frames. Output only the flat graphic, with no person, shirt or fabric.",
+        'minimal'    => "STYLE DIRECTIVE: ONE instant photo in a Polaroid frame, matching the reference. Use one faithful, natural photo of the pet and a short handwritten caption on the lower border. Keep a generous plain outer background matching the selected garment. On black, use a clearly light frame and caption; on white, use a clean white frame with dark caption. Nothing else in the composition.",
         'anime'      => "STYLE DIRECTIVE: Japanese anime / kawaii illustration. Cel-shaded with clean outlines. Large expressive eyes. Soft pastel or vibrant saturated colors. Speed lines or sparkle effects. Japanese characters or katakana as typographic element. Cute chibi proportions optional.",
         'rap-tee'    => "STYLE DIRECTIVE: 90s bootleg 'galaxy' rap tee, exactly like the reference image. Deep dark cosmic background with purple/blue nebula and stars. Electric blue lightning bolts crackling around the composition. TWO or THREE photographic renditions of THE SAME pet from the customer photo at different scales (large main portrait plus smaller crops) — identical animal in every rendition, only pose/angle changes — photo-real with subtle halftone grain. The pet name in huge CHROME 3D beveled metallic lettering with pink-to-blue gradient and glow, 90s airbrush style. Optional wireframe globe motif behind. Tour-tee text lines in clean white sans-serif below.",
     ];
 
     $styleDirective = $perEstilo[$estilo] ?? "STYLE DIRECTIVE: Modern premium streetwear graphic design.";
-    // El fondo lo controla el color elegido: quitamos menciones fijas de color de fondo.
-    $styleDirective = str_ireplace(
-        ['on a pure white background', 'High contrast dark background.', 'dark backgrounds, '],
-        ['', '', ''],
-        $styleDirective
-    );
+    $substrateDirective = $isDark
+        ? "GARMENT COLOR: BLACK. Match the entire empty background to near-black so it disappears into the shirt. Use bright, readable foreground inks. For Granulado use one light warm coral/cream ink (never dark red); for Vogue use ivory, white and restrained bright accents; for Clean Look and Polaroid make frames, lettering and photo highlights light. The print will knock dark pixels out to transparent, so all essential details must be bright enough to remain visible.\n\n"
+        : "GARMENT COLOR: WHITE. Match the empty background to clean white so it disappears into the shirt. Keep essential foreground artwork dark or richly saturated. For Granulado use one warm brick/red/orange ink; for Vogue use refined dark editorial lettering; for Clean Look keep its dark title and photo details. The print will knock near-white pixels out to transparent, so do not rely on white ink for essential details.\n\n";
 
     $compositionBlock = "=== COMPOSITION RULES ===\n"
         . "- Design the artwork to sit on a {$bgWord}-toned background (it prints on a {$bgWord} shirt)\n"
@@ -471,15 +473,6 @@ function build_optimized_prompt($estilo, $nombreMascota, $analisis, $estiloDesc 
         . "A viewer who knows this pet must be able to immediately recognize it at a glance, the same way they would recognize it in a different photo. "
         . "The coat color pattern, eye color, unique markings, AND the head/face geometry (skull and muzzle shape, proportions) are NON-NEGOTIABLE identity markers — do not default to a generic breed-standard head shape if the photo shows different proportions. "
         . "Do not idealize, simplify, slim down, or \"cute-ify\" the pet's real proportions.\n\n";
-
-    $bgBlock = $isDark
-        ? "=== BACKGROUND TONE (this design prints on a BLACK shirt) ===\n"
-          . "Keep the OVERALL background DARK (deep blacks and dark tones) so it blends into the black shirt.\n"
-          . "Use ONLY the background treatments and effects that appear in the style reference images — do not add effects that are not present in them. Keep the overall background dark. Render the pet, text and key elements in LIGHT / bright tones so they pop.\n"
-          . "Do NOT use a white, light or bright solid background.\n\n"
-        : "=== BACKGROUND TONE (this design prints on a WHITE shirt) ===\n"
-          . "Keep the OVERALL background light / white and clean so it blends into the white shirt. Style textures and effects are welcome, but the base background stays light.\n"
-          . "Do NOT use a dark or black background.\n\n";
 
     // Checklist corto de identidad repetido al final: el prompt completo es largo y con
     // mucha instrucción de estilo/composición de por medio, así que lo crítico de identidad
@@ -506,12 +499,12 @@ function build_optimized_prompt($estilo, $nombreMascota, $analisis, $estiloDesc 
         . $bodyBlock
         . $styleBlock
         . $styleDirective . "\n\n"
+        . $substrateDirective
         . $compositionBlock
         . $nameBlock
         . $antiGenericBlock
-        . $bgBlock
         . $faceLockBlock
-        . "FINAL TARGET: A single, complete, print-ready pet artwork on a {$bgWord}-toned background. Premium quality, clean composition, not overloaded with details. Instantly recognizable as THIS specific pet rendered in the reference style.";
+        . "FINAL TARGET: A single, complete, print-ready pet artwork designed specifically for a {$bgWord} garment. Premium quality, clean composition, not overloaded with details. Instantly recognizable as THIS specific pet rendered in the reference style.";
 
     return $prompt;
 }
@@ -561,7 +554,10 @@ function call_gemini_image($prompt, $parts, $retries = 2)
             // y a las instrucciones del prompt. Si algún estilo queda "soso"/poco creativo,
             // conviene subir esto un poco (0.45-0.55) antes que tocar la identidad de la mascota.
             "temperature"        => 0.35,
-            "imageConfig"        => ["aspectRatio" => GEMINI_ASPECT_RATIO],  // fuerza vertical 3:4
+            "imageConfig"        => [
+                "aspectRatio" => GEMINI_ASPECT_RATIO,
+                "imageSize" => GEMINI_IMAGE_SIZE,
+            ],
         ],
     ];
 
@@ -650,7 +646,7 @@ if ($recurso === 'generar') {
     $talle  = trim($input['talle']  ?? '');
     $imagen = $input['imagen']      ?? '';
     $email  = trim($input['email']  ?? '');
-    $color  = trim($input['color']  ?? 'blanca');
+    $color  = strtolower(trim($input['color'] ?? 'blanca'));
 
     if (!$estilo || !$nombre || !$talle || !$imagen) {
         send_json(["error" => "Faltan datos: estilo, nombre, talle e imagen son obligatorios."], 400);
@@ -659,6 +655,14 @@ if ($recurso === 'generar') {
     $estilosValidos = ['vogue','retro','streetwear','collage','minimal','rap-tee','no-edit'];
     if (!in_array($estilo, $estilosValidos, true)) {
         send_json(["error" => "Estilo no válido: $estilo"], 400);
+    }
+    $colorPorEstilo = [
+        'vogue' => ['blanca', 'negra'], 'retro' => ['blanca', 'negra'],
+        'collage' => ['blanca', 'negra'], 'minimal' => ['blanca', 'negra'],
+        'streetwear' => ['negra'], 'rap-tee' => ['negra'],
+    ];
+    if ($estilo !== 'no-edit' && (!isset($colorPorEstilo[$estilo]) || !in_array($color, $colorPorEstilo[$estilo], true))) {
+        send_json(["error" => "Ese color de remera no está disponible para el estilo seleccionado."], 400);
     }
 
     // ── GUARDAR FOTO CLIENTE ──────────────────────────────────────────────
@@ -805,30 +809,32 @@ if ($recurso === 'generar') {
     $genPath     = $generatedFolder . '/' . $genFilename;
     $written     = file_put_contents($genPath, base64_decode($generatedB64));
     $genRelPath  = $written !== false ? 'generados/' . $genFilename : null;
+    if (!$genRelPath) {
+        try {
+            $pdo->prepare("UPDATE disenos_mascotas SET estado='error', error_mensaje='No se pudo guardar archivo' WHERE id=?")
+                ->execute([$disenoId]);
+        } catch (Throwable $e) {}
+        send_json(["error" => "No se pudo guardar el diseño en el servidor. Intentá de nuevo."], 500);
+    }
 
     // ── PASO 8: UPDATE BD ─────────────────────────────────────────────────
-    if ($genRelPath) {
+    try {
+        $pdo->prepare("UPDATE disenos_mascotas SET imagen_generada=?, prompt_enviado=?, estado='generado', analisis_mascota=? WHERE id=?")
+            ->execute([$genRelPath, $prompt, json_encode($analisis), $disenoId]);
+    } catch (Exception $e) {
         try {
-            $pdo->prepare("UPDATE disenos_mascotas SET imagen_generada=?, prompt_enviado=?, estado='generado', analisis_mascota=? WHERE id=?")
-                ->execute([$genRelPath, $prompt, json_encode($analisis), $disenoId]);
-        } catch (Exception $e) {
-            try {
-                $pdo->prepare("UPDATE disenos_mascotas SET imagen_generada=?, estado='generado' WHERE id=?")
-                    ->execute([$genRelPath, $disenoId]);
-            } catch (Exception $e2) {}
-        }
-    } else {
-        try {
-            $pdo->prepare("UPDATE disenos_mascotas SET estado='generado', error_mensaje='No se pudo guardar archivo' WHERE id=?")
-                ->execute([$disenoId]);
-        } catch (Exception $e) {}
+            $pdo->prepare("UPDATE disenos_mascotas SET imagen_generada=?, estado='generado' WHERE id=?")
+                ->execute([$genRelPath, $disenoId]);
+        } catch (Exception $e2) {}
     }
 
     // ── PASO 9: RESPUESTA ─────────────────────────────────────────────────
     $responseData = [
         "success"         => true,
         "id"              => (int)$disenoId,
-        "imagen_generada" => "data:{$generatedMime};base64,{$generatedB64}",
+        // La ruta local evita devolver y transferir varios megabytes en base64.
+        // El navegador puede mostrar el mismo archivo con imagen_url.
+        "imagen_generada" => null,
         "estilo"          => $estilo,
         "nombre"          => $nombre,
         "talle"           => $talle,
@@ -900,7 +906,15 @@ if ($recurso === 'regenerar' && $method === 'POST') {
     if (!$refsInline) send_json(["error" => "No se pudieron leer las referencias."], 500);
     $refInlineData = $refsInline[0];
     $estiloDesc    = describir_estilo_referencia($refInlineData, $diseno['estilo']);
-    $regenColor    = trim($input['color'] ?? 'blanca');
+    $regenColor    = strtolower(trim($input['color'] ?? 'blanca'));
+    $colorPorEstilo = [
+        'vogue' => ['blanca', 'negra'], 'retro' => ['blanca', 'negra'],
+        'collage' => ['blanca', 'negra'], 'minimal' => ['blanca', 'negra'],
+        'streetwear' => ['negra'], 'rap-tee' => ['negra'],
+    ];
+    if (!isset($colorPorEstilo[$diseno['estilo']]) || !in_array($regenColor, $colorPorEstilo[$diseno['estilo']], true)) {
+        send_json(["error" => "Ese color de remera no está disponible para el estilo seleccionado."], 400);
+    }
     $prompt        = build_optimized_prompt($diseno['estilo'], $diseno['nombre_mascota'], $analisis, $estiloDesc, $regenColor);
 
     $parts  = build_image_parts($prompt, $clienteInlineData, $refsInline);
@@ -914,7 +928,8 @@ if ($recurso === 'regenerar' && $method === 'POST') {
     $ext         = ($generatedMime === 'image/jpeg') ? 'jpg' : 'png';
     $genFilename = 'diseno_' . $id . '_v' . time() . '.' . $ext;
     $genPath     = __DIR__ . '/generados/' . $genFilename;
-    file_put_contents($genPath, base64_decode($generatedB64));
+    $written = @file_put_contents($genPath, base64_decode($generatedB64));
+    if ($written === false) send_json(["error" => "No se pudo guardar el diseño regenerado."], 500);
 
     try {
         $pdo->prepare("UPDATE disenos_mascotas SET imagen_generada=?, estado='generado' WHERE id=?")
@@ -924,7 +939,7 @@ if ($recurso === 'regenerar' && $method === 'POST') {
     send_json([
         "success"         => true,
         "id"              => (int)$id,
-        "imagen_generada" => "data:{$generatedMime};base64,{$generatedB64}",
+        "imagen_generada" => null,
         "imagen_url"      => 'generados/' . $genFilename,
         "analisis"        => $analisis,
     ]);

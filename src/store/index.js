@@ -1,5 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit';
 import cartReducer from './cartSlice';
+import { TSHIRT_PRICE } from '../config/env';
 
 const STORAGE_KEY = 'clubhuella.cart.v1';
 
@@ -17,7 +18,9 @@ function loadCart() {
     const parsed = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed.items)) return undefined;
 
-    return { items: parsed.items };
+    // Price can change between visits; use the active catalog price so a
+    // persisted cart cannot send an obsolete amount to checkout.
+    return { items: parsed.items.map((item) => ({ ...item, price: TSHIRT_PRICE })) };
   } catch {
     return undefined;
   }

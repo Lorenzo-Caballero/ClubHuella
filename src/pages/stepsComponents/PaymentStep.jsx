@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import {
   FiCreditCard,
   FiSmartphone,
@@ -24,8 +24,9 @@ import {
   PICKUP,
   PICKUP_FULL_ADDRESS,
   assetUrl,
+  MULTI_ITEM_CHECKOUT_ENABLED,
 } from '../../config/env';
-import { clearCart, selectCartItems, selectCartSubtotal } from '../../store/cartSlice';
+import { selectCartItems, selectCartSubtotal } from '../../store/cartSlice';
 import { trackPixelEvent } from '../../lib/metaPixel';
 
 const STYLES_MAP = {
@@ -89,7 +90,6 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
   const [error,   setError]   = useState(null);
 
   // Carrito (Redux Toolkit)
-  const dispatch     = useDispatch();
   const cartItems    = useSelector(selectCartItems);
   const cartSubtotal = useSelector(selectCartSubtotal);
   const subtotal     = cartSubtotal > 0 ? cartSubtotal : (shippingData?.subtotal ?? TSHIRT_PRICE);
@@ -107,6 +107,14 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
   const orderLines = cartItems.length > 0
     ? cartItems.map((item) => ({
         key:      item.id,
+        contentId: String(item.disenoId || item.style || 'remera-personalizada'),
+        designId: item.disenoId || '',
+        petName: item.name || '',
+        style: item.style || '',
+        color: item.color || '',
+        size: item.size || '',
+        imageUrl: item.imagenUrl || '',
+        unitPrice: Number(item.price) || TSHIRT_PRICE,
         image:    item.image || (item.imagenUrl ? assetUrl(item.imagenUrl) : null),
         title:    item.name || 'Mi mascota',
         subtitle: `${item.styleName || STYLES_MAP[item.style] || item.style || '—'} · ${item.colorName || COLORS_MAP[item.color] || item.color || '—'} · Talle ${item.size || '—'}`,
@@ -115,6 +123,14 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
       }))
     : [{
         key:      'actual',
+        contentId: String(generated?.id || data?.style || 'remera-personalizada'),
+        designId: generated?.id || '',
+        petName: data?.name || '',
+        style: data?.style || '',
+        color: data?.color || '',
+        size: data?.size || '',
+        imageUrl: generated?.imagen_url || '',
+        unitPrice: subtotal,
         image:    designSrc,
         title:    data?.name || 'Mi mascota',
         subtitle: `${styleName} · ${colorName} · Talle ${data?.size || '—'}`,
@@ -133,6 +149,16 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
       ].filter(Boolean).join(', ');
 
   const handlePay = async () => {
+    const itemCount = orderLines.reduce((count, line) => count + (line.qty || 1), 0);
+    if (itemCount > 20) {
+      setError('El carrito admite hasta 20 remeras por compra. Quitá algunas para continuar.');
+      return;
+    }
+    if (itemCount > 1 && !MULTI_ITEM_CHECKOUT_ENABLED) {
+      setError('El servidor de pagos todavía no está configurado para procesar varias remeras juntas. El carrito se conserva.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -155,6 +181,17 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
         imagen_url:     generated?.imagen_url ?? '',
         diseno_id:      generated?.id ?? '',
         precio_remera:  subtotal,
+        items: orderLines.map((line) => ({
+          diseno_id: line.designId,
+          nombre_mascota: line.petName,
+          estilo: line.style,
+          color: line.color,
+          talle: line.size,
+          imagen_url: line.imageUrl,
+          cantidad: line.qty || 1,
+          precio_unitario: line.unitPrice,
+          subtotal: line.unitPrice * (line.qty || 1),
+        })),
         precio_envio:   shipCost,
         total,
         tipo_entrega:   shippingData.type,
@@ -181,13 +218,12 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
         currency: 'ARS',
         num_items: orderLines.reduce((acc, l) => acc + (l.qty || 1), 0),
         content_type: 'product',
-        contents: orderLines.map((l) => ({ id: l.key, quantity: l.qty || 1 })),
+        content_ids: orderLines.map((l) => l.contentId),
+        contents: orderLines.map((l) => ({ id: l.contentId, quantity: l.qty || 1 })),
       });
 
-      // El pedido ya quedó creado en el backend: vaciamos el carrito para que
-      // no se arrastre a una compra siguiente y termine cobrando de más.
-      dispatch(clearCart());
-
+      // Conservamos el carrito hasta que Mercado Pago confirme la compra;
+      // si el usuario cancela o el pago se rechaza, puede volver a intentarlo.
       window.location.href = json.init_point;
 
     } catch (err) {
@@ -207,7 +243,7 @@ const PaymentStep = ({ data, generated, shippingData, onBack }) => {
         className="mb-7"
       >
         <span className="block text-[11px] font-bold tracking-[0.25em] uppercase text-neutral-500 mb-3">
-          08 · Pago
+          03 · Pago
         </span>
         <h1 className="text-3xl md:text-4xl font-black tracking-tight text-neutral-900 leading-[1.05]">
           Resumen y pago.

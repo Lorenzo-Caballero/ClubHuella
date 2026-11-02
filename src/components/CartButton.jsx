@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { assetUrl } from '../config/env';
+import { assetUrl, MULTI_ITEM_CHECKOUT_ENABLED } from '../config/env';
 
 import {
   selectCartItems,
@@ -22,7 +22,7 @@ import {
    position:fixed de los hijos (se superponía con el contenido).
    ============================================================ */
 
-const CartLine = ({ item, onRemove, onQty }) => {
+const CartLine = ({ item, onRemove, onQty, readOnly }) => {
   // Cada item muestra SU diseño (nunca el de otro item del carrito).
   const image = item.image || (item.imagenUrl ? assetUrl(item.imagenUrl) : null);
 
@@ -47,7 +47,9 @@ const CartLine = ({ item, onRemove, onQty }) => {
       </div>
 
       <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex items-center border border-neutral-900/15 rounded-full overflow-hidden">
+        {readOnly ? (
+          <span className="text-xs font-bold text-neutral-600">Cantidad: {item.qty}</span>
+        ) : <div className="flex items-center border border-neutral-900/15 rounded-full overflow-hidden">
           <button
             type="button"
             aria-label="Restar unidad"
@@ -65,14 +67,14 @@ const CartLine = ({ item, onRemove, onQty }) => {
           >
             +
           </button>
-        </div>
+        </div>}
         <span className="text-sm font-bold text-neutral-900">
           ${(item.price * item.qty).toLocaleString('es-AR')}
         </span>
       </div>
     </div>
 
-    <button
+    {!readOnly && <button
       type="button"
       onClick={onRemove}
       aria-label={`Quitar ${item.name || 'item'} del carrito`}
@@ -81,17 +83,24 @@ const CartLine = ({ item, onRemove, onQty }) => {
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M6 6l12 12M18 6L6 18" />
       </svg>
-    </button>
+    </button>}
   </div>
   );
 };
 
-const CartPanel = ({ onClose }) => {
+const CartPanel = ({ onClose, onCreateAnother, readOnly }) => {
   const dispatch    = useDispatch();
   const items       = useSelector(selectCartItems);
   const subtotal    = useSelector(selectCartSubtotal);
   // Solo se puede pagar si el diseño ya fue generado.
   const canCheckout = useSelector(selectCanCheckout);
+  const count = useSelector(selectCartCount);
+  const canCheckoutTogether = count <= 1 || MULTI_ITEM_CHECKOUT_ENABLED;
+
+  const createAnother = () => {
+    onClose();
+    if (onCreateAnother) onCreateAnother();
+  };
 
   return createPortal(
     <>
@@ -112,7 +121,10 @@ const CartPanel = ({ onClose }) => {
         className="fixed top-0 right-0 bottom-0 w-[22rem] max-w-[88%] bg-[#FBF9F4] z-[100] flex flex-col shadow-2xl"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-900/10">
-          <span className="font-black tracking-[0.18em] text-sm text-neutral-900">TU CARRITO</span>
+          <div>
+            <span className="block font-black tracking-[0.18em] text-sm text-neutral-900">TU CARRITO</span>
+            <span className="block mt-1 text-[11px] text-neutral-500">{count} {count === 1 ? 'remera' : 'remeras'}</span>
+          </div>
           <button aria-label="Cerrar carrito" onClick={onClose} className="p-2 -mr-2 text-neutral-900">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 6l12 12M18 6L6 18" />
@@ -135,6 +147,7 @@ const CartPanel = ({ onClose }) => {
                 item={item}
                 onRemove={() => dispatch(removeItem(item.id))}
                 onQty={(qty) => dispatch(setQty({ id: item.id, qty }))}
+                readOnly={readOnly}
               />
             ))
           )}
@@ -153,7 +166,7 @@ const CartPanel = ({ onClose }) => {
             </p>
           )}
 
-          {canCheckout ? (
+          {canCheckout && canCheckoutTogether ? (
             <>
               <a
                 href="/crear?paso=envio"
@@ -164,24 +177,37 @@ const CartPanel = ({ onClose }) => {
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>
               </a>
-              <a
-                href="/crear"
+              {onCreateAnother ? <button
+                type="button"
+                onClick={createAnother}
                 className="w-full inline-flex items-center justify-center border border-neutral-900/15 text-neutral-900 py-3 rounded-full font-semibold text-sm hover:border-neutral-900 transition"
               >
-                Crear otra remera
-              </a>
+                + Crear otra remera
+              </button> : <a
+                href="/crear"
+                className="w-full inline-flex items-center justify-center border border-neutral-900/15 text-neutral-900 py-3 rounded-full font-semibold text-sm hover:border-neutral-900 transition"
+              >+ Crear otra remera</a>}
               <p className="text-[10px] text-neutral-400 text-center">
                 🐾 10% de tu compra va a refugios · Pago seguro con Mercado Pago
               </p>
             </>
+          ) : canCheckout && !canCheckoutTogether ? (
+            <>
+              <button type="button" disabled className="w-full inline-flex items-center justify-center bg-neutral-200 text-neutral-500 py-4 rounded-full font-semibold text-sm cursor-not-allowed">
+                Pago conjunto en preparación
+              </button>
+              <p className="text-[11px] text-neutral-500 text-center leading-relaxed">
+                El servidor de pagos todavía debe aceptar varias remeras en un solo pedido.
+              </p>
+              {onCreateAnother && <button type="button" onClick={createAnother} className="w-full text-center text-sm font-semibold text-neutral-700 py-2">+ Crear otra remera</button>}
+            </>
           ) : (
             <>
-              <a
-                href="/crear"
+              {onCreateAnother ? <button type="button" onClick={createAnother}
                 className="w-full inline-flex items-center justify-center bg-neutral-900 text-white py-3.5 rounded-full font-semibold text-sm hover:bg-[#262626] transition"
               >
                 Crear mi remera
-              </a>
+              </button> : <a href="/crear" className="w-full inline-flex items-center justify-center bg-neutral-900 text-white py-3.5 rounded-full font-semibold text-sm hover:bg-[#262626] transition">Crear mi remera</a>}
               {items.length > 0 && (
                 <p className="text-[11px] text-neutral-500 text-center leading-relaxed">
                   Para poder pagar, primero terminá de generar el diseño de tu mascota.
@@ -190,7 +216,7 @@ const CartPanel = ({ onClose }) => {
             </>
           )}
 
-          {items.length > 0 && (
+          {items.length > 0 && !readOnly && (
             <button
               type="button"
               onClick={() => dispatch(clearCart())}
@@ -206,7 +232,7 @@ const CartPanel = ({ onClose }) => {
   );
 };
 
-const CartButton = ({ className = '' }) => {
+const CartButton = ({ className = '', onCreateAnother, readOnly = false }) => {
   const [open, setOpen] = useState(false);
   const count = useSelector(selectCartCount);
 
@@ -241,7 +267,7 @@ const CartButton = ({ className = '' }) => {
       </button>
 
       <AnimatePresence>
-        {open && <CartPanel onClose={() => setOpen(false)} />}
+        {open && <CartPanel onClose={() => setOpen(false)} onCreateAnother={onCreateAnother} readOnly={readOnly} />}
       </AnimatePresence>
     </>
   );

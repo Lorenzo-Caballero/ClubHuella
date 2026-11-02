@@ -23,29 +23,47 @@ require_once __DIR__ . '/PHPMailer/src/Exception.php';
 require_once __DIR__ . '/PHPMailer/src/PHPMailer.php';
 require_once __DIR__ . '/PHPMailer/src/SMTP.php';
 
-function notificar_estampador(int $pedidoId, array $meta, string $printAbsPath): array {
+function notificar_estampador_pedido(string $paymentId, array $items, array $delivery): array {
 
-    if (!defined('SMTP_HOST') || !defined('SMTP_USER') || !defined('ESTAMPADOR_EMAIL')) {
+    if (!defined('SMTP_HOST') || !defined('SMTP_USER') || !defined('SMTP_PASS') || !defined('ESTAMPADOR_EMAIL')) {
         return ['ok' => false, 'error' => 'faltan constantes SMTP en config.php'];
+    }
+    if ($paymentId === '' || !$items) return ['ok' => false, 'error' => 'falta referencia de pago o adjuntos'];
+
+    $safeRef = preg_replace('/[^a-zA-Z0-9_-]/', '', $paymentId);
+    $privateDir = dirname(__DIR__) . '/meta_pagos';
+    if (!is_dir($privateDir) && !@mkdir($privateDir, 0750, true) && !is_dir($privateDir)) {
+        return ['ok' => false, 'error' => 'no se pudo preparar el control privado de correo'];
+    }
+    $sentFile = $privateDir . '/dtf_mail_' . $safeRef . '.sent';
+    $lock = @fopen($privateDir . '/dtf_mail_' . $safeRef . '.lock', 'c');
+    if (!$lock || !flock($lock, LOCK_EX)) {
+        if (is_resource($lock)) fclose($lock);
+        return ['ok' => false, 'error' => 'no se pudo bloquear el envío para evitar duplicados'];
+    }
+    if (is_file($sentFile)) {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+        return ['ok' => true, 'already_sent' => true];
+    }
+
+    foreach ($items as $item) {
+        $path = (string)($item['archivo'] ?? '');
+        $image = $path !== '' ? @getimagesize($path) : false;
+        if (!$image || ($image['mime'] ?? '') !== 'image/png') {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+            return ['ok' => false, 'error' => 'se canceló el email: un adjunto no es un PNG válido'];
+        }
     }
 
     $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-
-    $mascota = $meta['nombre_mascota'] ?? 'Mascota';
-    $estilo  = $meta['estilo']         ?? '';
-    $color   = $meta['color']          ?? '';
-    $talle   = $meta['talle']          ?? '';
-    $dest    = $meta['nombre']          ?? '';
-    $tel     = $meta['telefono']        ?? '';
-    $dir     = $meta['direccion']       ?? '';
-    $ciudad  = $meta['ciudad']          ?? '';
-    $prov    = $meta['provincia']       ?? '';
-    $cp      = $meta['cp']              ?? '';
-    $tipo    = $meta['tipo_entrega']    ?? 'domicilio';
-
-    $entrega = ($tipo === 'tienda')
+    $dest = $delivery['destinatario_nombre'] ?? '';
+    $tel = $delivery['destinatario_telefono'] ?? '';
+    $entrega = (($delivery['tipo_entrega'] ?? '') === 'tienda')
         ? 'Retiro en local'
-        : trim("{$dir}, {$ciudad}, {$prov} (CP {$cp})", ", ");
+        : (string)($delivery['direccion'] ?? '');
+    $ids = implode(', ', array_map(fn($item) => '#' . (int)$item['pedido_id'], $items));
 
     $mail = new PHPMailer(true);
     try {
@@ -64,36 +82,52 @@ function notificar_estampador(int $pedidoId, array $meta, string $printAbsPath):
             $mail->addCC(ESTAMPADOR_CC);
         }
 
-        $mail->Subject = "Nuevo pedido #{$pedidoId} — {$mascota}";
+        $mail->Subject = 'Club Huella — pago ' . $e($paymentId) . ' · ' . count($items) . ' remera(s) (' . $ids . ')';
+
+        $itemHtml = '';
+        $itemText = '';
+        foreach ($items as $item) {
+            $itemHtml .= '<li><b>Pedido #' . (int)$item['pedido_id'] . '</b> — ' . $e($item['nombre_mascota'] ?? 'Mascota')
+                . ' · ' . $e($item['estilo'] ?? '') . ' · Remera ' . $e($item['color'] ?? '')
+                . ' · Talle ' . $e($item['talle'] ?? '') . '</li>';
+            $itemText .= 'Pedido #' . (int)$item['pedido_id'] . ' — ' . ($item['nombre_mascota'] ?? 'Mascota')
+                . ' | ' . ($item['estilo'] ?? '') . ' | ' . ($item['color'] ?? '') . ' | Talle ' . ($item['talle'] ?? '') . "\n";
+        }
 
         $mail->isHTML(true);
         $mail->Body = "
             <div style='font-family:sans-serif;font-size:15px;color:#222'>
-              <h2 style='margin:0 0 12px'>🐾 Nuevo pedido #{$pedidoId}</h2>
-              <p><b>Mascota:</b> {$e($mascota)}<br>
-                 <b>Estilo:</b> {$e($estilo)} &middot; <b>Color:</b> {$e($color)} &middot; <b>Talle:</b> {$e($talle)}</p>
+              <h2 style='margin:0 0 12px'>🐾 Nuevo pago {$e($paymentId)}</h2>
+              <p><b>Prendas ({$e(count($items))}):</b></p><ul>{$itemHtml}</ul>
               <hr style='border:none;border-top:1px solid #ddd'>
               <p><b>Cliente:</b> {$e($dest)}<br>
                  <b>Teléfono:</b> {$e($tel)}<br>
                  <b>Entrega:</b> {$e($entrega)}</p>
               <hr style='border:none;border-top:1px solid #ddd'>
-              <p>El diseño <b>listo para imprimir</b> va adjunto a este mail.</p>
+              <p>Todos los PNG adjuntos están preparados para impresión a 300 ppp.</p>
             </div>";
         $mail->AltBody =
-            "Nuevo pedido #{$pedidoId} - {$mascota}\n"
-            . "Estilo: {$estilo} | Color: {$color} | Talle: {$talle}\n"
+            "Nuevo pago {$paymentId} ({$ids})\n"
+            . "Prendas:\n{$itemText}"
             . "Cliente: {$dest} | Tel: {$tel}\n"
             . "Entrega: {$entrega}\n"
-            . "El diseño listo para imprimir va adjunto.";
+            . "Todos los PNG adjuntos están preparados para impresión a 300 ppp.";
 
-        if ($printAbsPath && file_exists($printAbsPath)) {
-            $mail->addAttachment($printAbsPath, "pedido_{$pedidoId}_impresion.png");
+        foreach ($items as $item) {
+            $itemId = (int)$item['pedido_id'];
+            $mail->addAttachment((string)$item['archivo'], "pedido_{$itemId}_impresion.png", 'base64', 'image/png');
         }
 
         $mail->send();
-        return ['ok' => true];
+        if (@file_put_contents($sentFile, gmdate('c')) === false) {
+            return ['ok' => false, 'error' => 'el correo salió, pero no se pudo guardar el control anti-duplicado'];
+        }
+        return ['ok' => true, 'cantidad_adjuntos' => count($items)];
 
-    } catch (Exception $ex) {
-        return ['ok' => false, 'error' => $mail->ErrorInfo];
+    } catch (Throwable $ex) {
+        return ['ok' => false, 'error' => $mail->ErrorInfo ?: $ex->getMessage()];
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
 }

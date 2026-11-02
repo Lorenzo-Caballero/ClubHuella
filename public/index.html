@@ -156,34 +156,24 @@
     </script>
 
     <!-- ============================================================
-         Meta Pixel (Facebook/Instagram Ads) — trackea PageView en
-         todo el sitio. El ID se inyecta en build-time desde
-         REACT_APP_META_PIXEL_ID (ver .env). El evento Purchase se
-         dispara aparte, en la página de retorno del checkout.
+         Meta Pixel (Facebook/Instagram Ads). El ID se inyecta en
+         build-time desde REACT_APP_META_PIXEL_ID. Los PageView de
+         navegación se envían desde App.js para cubrir rutas SPA.
          ============================================================ -->
     <script>
-      !function(f,b,e,v,n,t,s)
-      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)}(window, document,'script',
-      'https://connect.facebook.net/en_US/fbevents.js');
       var CH_PIXEL_ID = '%REACT_APP_META_PIXEL_ID%';
       if (CH_PIXEL_ID && CH_PIXEL_ID.indexOf('%') === -1) {
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
         fbq('init', CH_PIXEL_ID);
-        fbq('track', 'PageView');
       }
     </script>
-    <noscript>
-      <img
-        height="1"
-        width="1"
-        style="display:none"
-        src="https://www.facebook.com/tr?id=%REACT_APP_META_PIXEL_ID%&ev=PageView&noscript=1"
-      />
-    </noscript>
     <!-- End Meta Pixel Code -->
   </head>
   <body>

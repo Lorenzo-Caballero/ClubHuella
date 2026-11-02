@@ -43,7 +43,11 @@ export const PAY_URL = `${PAYMENTS_URL}?action=pagar`;
 export const GENERATION_TIMEOUT_MS = readNumber('REACT_APP_GENERATION_TIMEOUT_MS', 150_000);
 export const REQUEST_TIMEOUT_MS = readNumber('REACT_APP_REQUEST_TIMEOUT_MS', 30_000);
 
-export const TSHIRT_PRICE = readNumber('REACT_APP_TSHIRT_PRICE', 42_990);
+export const TSHIRT_PRICE = readNumber('REACT_APP_TSHIRT_PRICE', 44_900);
+// El endpoint PHP del mismo repositorio ya cobra varias remeras y registra
+// una fila por unidad en pedidos. Se puede desactivar por variable de entorno.
+export const MULTI_ITEM_CHECKOUT_ENABLED =
+  readString('REACT_APP_MULTI_ITEM_CHECKOUT', 'true').toLowerCase() === 'true';
 
 export const PICKUP = {
   address:    readString('REACT_APP_PICKUP_ADDRESS', 'Av. Héctor Jara 22'),

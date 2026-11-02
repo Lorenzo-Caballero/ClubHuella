@@ -17,6 +17,7 @@ import cleanLookImg from '../assets/styles/clean-look.jpg';   // collage -> slug
 // ── Nuevos steps modulares ─────────────────────────────────
 import ShippingStep from './stepsComponents/ShippingStep';
 import PaymentStep  from './stepsComponents/PaymentStep';
+import CartButton from '../components/CartButton';
 
 // ── Config por variables de entorno + carrito ──────────────
 import {
@@ -26,6 +27,8 @@ import {
   TSHIRT_PRICE,
   assetUrl,
 } from '../config/env';
+import { STYLE_DEFAULT_COLOR, STYLE_SHIRT_COLORS, styleColorAvailability, shirtColorLabel } from '../config/styleColors';
+import { trackPixelEvent } from '../lib/metaPixel';
 import { addItem, selectCartItems, selectLastCartItem } from '../store/cartSlice';
 import usePageMeta from '../hooks/usePageMeta';
 
@@ -56,14 +59,14 @@ const STEPS = [
 const IDX = Object.fromEntries(STEPS.map((s, i) => [s.id, i]));
 
 const STYLES = [
-  { slug: 'vogue',       name: 'Vogue',      tag: 'Editorial',  desc: 'Portada de revista de lujo.',    image: vogueImg },
-  { slug: 'retro',       name: 'Granulado',  tag: 'Riso',       desc: 'Halftone granulado a un color.',  image: granuladoImg },
-  { slug: 'streetwear',  name: 'Street',     tag: 'Urbano',     desc: 'Calle, polaroids, actitud.',      image: streetImg },
-  { slug: 'college',     name: 'College',    tag: 'Varsity',    desc: 'Arcos, año de fundación.',        fallback: 'bg-gradient-to-br from-amber-50 to-stone-200' },
-  { slug: 'collage',     name: 'Clean Look', tag: 'Mixtape',    desc: 'Recortes, capas, playlist.',      image: cleanLookImg },
-  { slug: 'minimal',     name: 'Polaroid',   tag: 'Polaroid',   desc: 'Una foto. Cero ruido.',           image: polaroidImg },
-  { slug: 'anime',       name: 'Anime',      tag: 'Kawaii',     desc: 'Ilustración japonesa.',           fallback: 'bg-gradient-to-br from-rose-100 to-sky-100' },
-  { slug: 'rap-tee',     name: 'Retro',      tag: 'Bootleg',    desc: 'Galaxia, rayos, vibra 90s.',      image: retroImg },
+  { slug: 'vogue',       name: 'Vogue',      desc: 'Una portada elegante con tu mascota.',    image: vogueImg },
+  { slug: 'retro',       name: 'Granulado',  desc: 'Un retrato cálido de tinta tramada.',     image: granuladoImg },
+  { slug: 'streetwear',  name: 'Street',     desc: 'Gráfica urbana de alto contraste.',       image: streetImg },
+  { slug: 'college',     name: 'College',    tag: 'Varsity',    desc: 'Arcos, año de fundación.',        fallback: 'bg-gradient-to-br from-amber-50 to-stone-200', comingSoon: true },
+  { slug: 'collage',     name: 'Clean Look', desc: 'Fotos y tipografía en una composición.', image: cleanLookImg },
+  { slug: 'minimal',     name: 'Polaroid',   desc: 'Una foto y el nombre de tu mascota.',    image: polaroidImg },
+  { slug: 'anime',       name: 'Anime',      tag: 'Kawaii',     desc: 'Ilustración japonesa.',           fallback: 'bg-gradient-to-br from-rose-100 to-sky-100', comingSoon: true },
+  { slug: 'rap-tee',     name: 'Retro',      desc: 'Galaxia, rayos y una gráfica 90s.',       image: retroImg },
 ];
 
 const COLORS = [
@@ -244,7 +247,13 @@ const TshirtMockup = ({
 /* ============================================================
    PROGRESS BAR
    ============================================================ */
-const ProgressBar = ({ current, total, onBack, onClose }) => {
+const ProgressBar = ({ current, total, onBack, onClose, onCreateAnother }) => {
+  const phaseIndex = current <= IDX.size ? 0 : current <= IDX.result ? 1 : 2;
+  const phaseLabels = ['Personalizá', 'Mirá tu diseño', 'Entrega y pago'];
+  const phaseStart = phaseIndex === 0 ? IDX.style : phaseIndex === 1 ? IDX.upload : IDX.shipping;
+  const phaseEnd = phaseIndex === 0 ? IDX.size : phaseIndex === 1 ? IDX.result : IDX.payment;
+  const phaseStep = current - phaseStart + 1;
+  const phaseStepCount = phaseEnd - phaseStart + 1;
   const pct = ((current + 1) / total) * 100;
 
   return (
@@ -262,24 +271,32 @@ const ProgressBar = ({ current, total, onBack, onClose }) => {
             </svg>
           </button>
 
-          <div className="text-[11px] font-bold tracking-[0.25em] uppercase text-neutral-500">
-            Paso {current + 1} <span className="text-neutral-300">/</span> {total}
+          <div className="text-center">
+            <div className="text-[11px] font-bold tracking-[0.14em] uppercase text-neutral-700">
+              Etapa {phaseIndex + 1} <span className="text-neutral-300">/ 3 ·</span> {phaseLabels[phaseIndex]}
+            </div>
+            <div className="mt-0.5 text-[10px] font-medium text-neutral-400">
+              Paso {phaseStep} de {phaseStepCount}
+            </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="w-9 h-9 -mr-2 flex items-center justify-center rounded-full hover:bg-neutral-100 transition"
-            aria-label="Cerrar"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 6l12 12M18 6l-6 6-6 6" />
-            </svg>
-          </button>
+          <div className="flex items-center -mr-2">
+            <CartButton onCreateAnother={onCreateAnother} readOnly={current === IDX.payment} />
+            <button
+              onClick={onClose}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-neutral-100 transition"
+              aria-label="Cerrar"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 6l12 12M18 6l-6 6-6 6" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div className="h-[3px] w-full bg-neutral-100 rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-neutral-900 rounded-full"
+            className="h-full bg-[#C2410C] rounded-full"
             initial={false}
             animate={{ width: `${pct}%` }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -358,10 +375,12 @@ const StyleStep = ({ value, onChange, onNext }) => (
         return (
           <motion.button
             key={s.slug}
+            disabled={s.comingSoon}
+            aria-label={s.comingSoon ? s.name + ', próximamente' : 'Elegir estilo ' + s.name}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.035, duration: 0.4, ease: 'easeOut' }}
-            onClick={() => onChange(s.slug)}
+            onClick={() => !s.comingSoon && onChange(s.slug)}
             className={`group relative text-left rounded-2xl overflow-hidden border transition-all ${
               active
                 ? 'border-neutral-900 ring-2 ring-neutral-900 ring-offset-2'
@@ -379,15 +398,10 @@ const StyleStep = ({ value, onChange, onNext }) => (
               ) : (
                 <div className={`absolute inset-0 flex flex-col items-center justify-center ${s.fallback || 'bg-gradient-to-br from-neutral-200 to-neutral-300'}`}>
                   <span className="text-neutral-700 text-sm tracking-[0.2em] uppercase font-black">{s.name}</span>
-                  <span className="mt-1.5 text-neutral-500 text-[8px] tracking-[0.25em] uppercase font-bold">Ejemplo pronto</span>
+                  <span className="mt-1.5 text-neutral-500 text-[8px] tracking-[0.25em] uppercase font-bold">Próximamente</span>
                 </div>
               )}
 
-              <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/25 to-transparent pointer-events-none" />
-
-              <div className="absolute top-3 left-3 bg-neutral-900/90 backdrop-blur text-white px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase">
-                {s.tag}
-              </div>
               {active && (
                 <motion.div
                   initial={{ scale: 0 }}
@@ -405,6 +419,11 @@ const StyleStep = ({ value, onChange, onNext }) => (
               <div className="text-[11px] text-neutral-500 mt-0.5 line-clamp-1">
                 {s.desc}
               </div>
+              {!s.comingSoon && (
+                <div className="mt-2 text-[11px] font-semibold text-[#8D3414]">
+                  {styleColorAvailability(s.slug)}
+                </div>
+              )}
             </div>
           </motion.button>
         );
@@ -475,11 +494,19 @@ const NameStep = ({ value, onChange, onNext }) => {
    En este paso las dos remeras están una al lado de la otra, en grid 2 cols.
    Cada card mide ~150px en mobile y ~220px en desktop — proporción justa.
    ============================================================ */
-const ColorStep = ({ value, onChange, onNext }) => (
+const ColorStep = ({ style, value, onChange, onNext }) => {
+  const availableColors = STYLE_SHIRT_COLORS[style] || [];
+  const styleName = STYLES.find((item) => item.slug === style)?.name || 'Este estilo';
+  const colorOptionsText = availableColors.map(shirtColorLabel);
+  const availabilityText = colorOptionsText.length === 1
+    ? `remera ${colorOptionsText[0]}`
+    : `remera ${colorOptionsText[0]} y ${colorOptionsText[1]}`;
+
+  return (
   <StepLayout
     eyebrow="03 · Color de la remera"
-    title="¿Blanca o negra?"
-    subtitle="Tu diseño se va a imprimir sobre el color que elijas."
+    title="Elegí el color de tu remera."
+    subtitle={`${styleName} está disponible en ${availabilityText}. Adaptamos el diseño para que conserve el contraste.`}
     footer={
       <PrimaryButton onClick={onNext} disabled={!value}>
         Continuar <ArrowRight />
@@ -489,14 +516,18 @@ const ColorStep = ({ value, onChange, onNext }) => (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md mx-auto w-full">
       {COLORS.map((c, i) => {
         const active = value === c.id;
+        const compatible = availableColors.includes(c.id);
         return (
           <motion.button
             key={c.id}
+            type="button"
+            disabled={!compatible}
+            aria-label={`Remera ${c.name.toLowerCase()}${compatible ? ', compatible con este estilo' : ', no compatible con este estilo'}`}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.07, duration: 0.4, ease: 'easeOut' }}
-            onClick={() => onChange(c.id)}
-            className={`relative rounded-2xl overflow-hidden border-2 transition-all text-left ${
+            onClick={() => compatible && onChange(c.id)}
+            className={`relative rounded-2xl overflow-hidden border-2 transition-all text-left ${!compatible ? 'opacity-50 grayscale cursor-not-allowed' : ''} ${
               active
                 ? 'border-neutral-900 ring-2 ring-neutral-900 ring-offset-2'
                 : 'border-neutral-200 hover:border-neutral-400'
@@ -527,7 +558,7 @@ const ColorStep = ({ value, onChange, onNext }) => (
                 <div className="font-bold text-sm tracking-tight">{c.name}</div>
               </div>
               <div className="text-[10px] sm:text-[11px] text-neutral-500 mt-1 leading-snug">
-                {c.desc}
+                {compatible ? 'Compatible con este estilo' : 'Este diseño perdería contraste'}
               </div>
             </div>
           </motion.button>
@@ -535,7 +566,8 @@ const ColorStep = ({ value, onChange, onNext }) => (
       })}
     </div>
   </StepLayout>
-);
+  );
+};
 
 /* ============================================================
    STEP 4 — TALLE
@@ -544,7 +576,7 @@ const SizeStep = ({ value, onChange, onNext }) => (
   <StepLayout
     eyebrow="04 · Calce"
     title="Elegí tu talle."
-    subtitle="Fit oversized. Si dudás entre dos, andá por el más chico."
+    subtitle="Fit oversized. Las medidas son de la prenda: comparalas con una remera tuya. Si dudás entre dos, andá por el más chico."
     footer={
       <PrimaryButton onClick={onNext} disabled={!value}>
         Continuar <ArrowRight />
@@ -976,7 +1008,7 @@ const SummaryStep = ({ data, onNext, onEdit }) => {
     <StepLayout
       eyebrow="06 · Confirmar"
       title="Revisá antes de generar."
-      subtitle="Cuando confirmes, nuestra IA va a crear tu diseño. Puede tardar hasta 2 minutos — vale la pena."
+      subtitle="Cuando confirmes, vamos a preparar una propuesta visual personalizada. Puede tardar hasta 2 minutos."
       footer={
         <PrimaryButton onClick={onNext}>
           Generar diseño
@@ -1173,8 +1205,8 @@ const GeneratingStep = ({ data, onDone, onError }) => {
       {/* Frases + progreso */}
       <div className="p-6 sm:p-8 pb-10 sm:pb-12 max-w-md mx-auto w-full relative">
         <div className="mb-6 min-h-[90px] sm:min-h-[100px]">
-          <div className="text-[10px] font-bold tracking-[0.3em] uppercase text-neutral-400 mb-3">
-            ✦ 
+          <div className="text-[10px] font-bold tracking-[0.3em] uppercase text-[#A83F21] mb-3">
+            ✦ Diseñando su retrato
           </div>
           <AnimatePresence mode="wait">
             <motion.h2
@@ -1193,15 +1225,15 @@ const GeneratingStep = ({ data, onDone, onError }) => {
 
         <div className="h-[2px] w-full bg-neutral-100 rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-neutral-900 rounded-full"
+            className="h-full bg-[#C2410C] rounded-full"
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.3 }}
           />
         </div>
 
-        <div className="mt-3 flex justify-between text-[10px] tracking-[0.25em] uppercase font-bold text-neutral-500">
-          <span>Tomando su tiempo</span>
-          <span>{Math.round(progress)}%</span>
+        <div className="mt-3 flex justify-between gap-4 text-[10px] tracking-[0.12em] uppercase font-bold text-neutral-500">
+          <span>Creando la vista previa</span>
+          <span className="text-right">Puede tardar hasta 2 min</span>
         </div>
       </div>
     </div>
@@ -1443,6 +1475,9 @@ const CreateFlow = ({ initialStyle = '' }) => {
   const lastCartItem = useSelector(selectLastCartItem);
   const resumeCheckout = searchParams.get('paso') === 'envio' && !!lastCartItem;
 
+  const requestedStyle = initialStyle || searchParams.get('estilo') || '';
+  const presetStyle = STYLES.some((style) => style.slug === requestedStyle && !style.comingSoon) ? requestedStyle : '';
+
   const [stepIndex,    setStepIndex]    = useState(() => (resumeCheckout ? IDX.shipping : 0));
   const [direction,    setDirection]    = useState(1);
   const [data,         setData]         = useState(() => (resumeCheckout ? {
@@ -1452,9 +1487,9 @@ const CreateFlow = ({ initialStyle = '' }) => {
     size:  lastCartItem.size,
     photo: null,
   } : {
-    style: initialStyle || searchParams.get('estilo') || '',
+    style: presetStyle,
     name:  '',
-    color: '',
+    color: STYLE_DEFAULT_COLOR[presetStyle] || '',
     size:  '',
     photo: null,
   }));
@@ -1491,6 +1526,11 @@ const CreateFlow = ({ initialStyle = '' }) => {
   }, [stepIndex, goHome]);
 
   const update = (key) => (value) => setData((d) => ({ ...d, [key]: value }));
+  const updateStyle = useCallback((style) => setData((d) => ({
+    ...d,
+    style,
+    color: STYLE_DEFAULT_COLOR[style] || '',
+  })), []);
 
   const handleGenerated = useCallback((result) => {
     setGenerated(result);
@@ -1508,7 +1548,11 @@ const CreateFlow = ({ initialStyle = '' }) => {
     try {
       const json = await apiRequest(
         `?recurso=regenerar&id=${generated.id}`,
-        { method: 'POST' },
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ color: data.color }),
+        },
         GENERATION_TIMEOUT_MS
       );
       setGenerated((g) => ({ ...g, ...json }));
@@ -1517,7 +1561,7 @@ const CreateFlow = ({ initialStyle = '' }) => {
     } finally {
       setRegenerating(false);
     }
-  }, [generated]);
+  }, [generated?.id, data.color]);
 
   // ── Carrito (Redux Toolkit): agrega la remera y sigue a envío ──
   // Si el usuario vuelve al resultado y toca de nuevo el CTA, no queremos
@@ -1553,15 +1597,46 @@ const CreateFlow = ({ initialStyle = '' }) => {
       image,
       imagenUrl: rawUrl,
     }));
+    trackPixelEvent('AddToCart', {
+      content_ids: [String(generated?.id || data.style)],
+      content_name: `Remera personalizada · ${data.name || 'Mi mascota'}`,
+      content_type: 'product',
+      contents: [{ id: String(generated?.id || data.style), quantity: 1, item_price: PRICE }],
+      value: PRICE,
+      currency: 'ARS',
+      num_items: 1,
+    });
     goTo(IDX.shipping);
   }, [dispatch, data, generated, goTo, alreadyInCart]);
 
+  const handleAddAnother = useCallback(() => {
+    setData({ style: '', name: '', color: '', size: '', photo: null });
+    setGenerated(null);
+    setShippingData(null);
+    setError(null);
+    setRegenerating(false);
+    setDirection(-1);
+    setStepIndex(IDX.style);
+    navigate('/crear', { replace: true });
+  }, [navigate]);
+
   // ── nuevo: ShippingStep llama onNext con los datos de envío ──
   const handleShippingDone = useCallback((sData) => {
+    trackPixelEvent('AddShippingInfo', {
+      content_type: 'product',
+      contents: cartItems.map((item) => ({
+        id: String(item.disenoId || item.style || 'remera-personalizada'),
+        quantity: item.qty || 1,
+        item_price: item.price,
+      })),
+      value: sData.total ?? PRICE,
+      currency: 'ARS',
+      shipping_tier: sData.type === 'tienda' ? 'Retiro en local' : (sData.service || 'Envío a domicilio'),
+    });
     setShippingData(sData);
     setDirection(1);
     setStepIndex(IDX.payment);
-  }, []);
+  }, [cartItems]);
 
   const handleRetry = () => {
     setError(null);
@@ -1570,13 +1645,26 @@ const CreateFlow = ({ initialStyle = '' }) => {
 
   const currentStep = STEPS[stepIndex].id;
 
+  useEffect(() => {
+    if (currentStep !== 'result') return;
+    const styleName = STYLES.find((style) => style.slug === data.style)?.name || 'Remera personalizada';
+    const productId = String(generated?.id || data.style || 'remera-personalizada');
+    trackPixelEvent('ViewContent', {
+      content_ids: [productId],
+      content_name: `${styleName} · ${data.name || 'Mi mascota'}`,
+      content_type: 'product',
+      value: PRICE,
+      currency: 'ARS',
+    });
+  }, [currentStep, generated?.id, data.style, data.name]);
+
   usePageMeta({
     title: `${STEPS[stepIndex].label} · Creá tu remera de mascota | Club Huella`,
-    description: 'Creá tu remera de perro o remera de gato personalizada con IA a partir de una foto de tu mascota. Elegí estilo, color y talle en minutos.',
+    description: 'Creá tu remera personalizada a partir de una foto de tu mascota. Elegí estilo, color y talle en minutos.',
   });
 
   // Ocultar barra en steps que tienen layout propio de pantalla completa
-  const showProgress = !['generating', 'result', 'shipping', 'payment'].includes(currentStep) && !error;
+  const showProgress = currentStep !== 'generating' && !error;
 
   const screen = useMemo(() => {
     if (error) {
@@ -1585,11 +1673,11 @@ const CreateFlow = ({ initialStyle = '' }) => {
 
     switch (currentStep) {
       case 'style':
-        return <StyleStep value={data.style} onChange={update('style')} onNext={nextStep} />;
+        return <StyleStep value={data.style} onChange={updateStyle} onNext={nextStep} />;
       case 'name':
         return <NameStep value={data.name} onChange={update('name')} onNext={nextStep} />;
       case 'color':
-        return <ColorStep value={data.color} onChange={update('color')} onNext={nextStep} />;
+        return <ColorStep style={data.style} value={data.color} onChange={update('color')} onNext={nextStep} />;
       case 'size':
         return <SizeStep value={data.size} onChange={update('size')} onNext={nextStep} />;
       case 'upload':
@@ -1616,6 +1704,7 @@ const CreateFlow = ({ initialStyle = '' }) => {
             generated={generated}
             onNext={handleShippingDone}
             onBack={() => goTo(IDX.result)}
+            onAddMore={handleAddAnother}
           />
         );
       case 'payment':
@@ -1632,8 +1721,8 @@ const CreateFlow = ({ initialStyle = '' }) => {
     }
   }, [
     currentStep, data, generated, shippingData, error, regenerating, alreadyInCart,
-    nextStep, goTo, goHome,
-    handleGenerated, handleError, handleRegenerate, handleShippingDone, handleAddToCart,
+    nextStep, goTo, goHome, updateStyle,
+    handleGenerated, handleError, handleRegenerate, handleShippingDone, handleAddToCart, handleAddAnother,
   ]);
 
   return (
@@ -1644,6 +1733,7 @@ const CreateFlow = ({ initialStyle = '' }) => {
           total={STEPS.length}
           onBack={prevStep}
           onClose={goHome}
+          onCreateAnother={handleAddAnother}
         />
       )}
 

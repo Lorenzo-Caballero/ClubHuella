@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { PAYMENTS_URL } from "../../config/env";
+import { adminFetch } from "../../lib/adminSession";
+import { FiLogOut } from "react-icons/fi";
 
 const API = PAYMENTS_URL;
 
@@ -26,7 +28,7 @@ const EMPTY_FORM = {
    Lanza error si la respuesta no es JSON válido (evita el
    "Unexpected token '<'" cuando el server devuelve HTML de error). */
 async function apiCall(url, options = {}) {
-  const res = await fetch(url, options);
+  const res = await adminFetch(url, options);
   const raw = await res.text();
 
   let data;
@@ -66,6 +68,24 @@ async function downloadImage(url, filename) {
   }
 }
 
+async function downloadOrderFile(orderId, type) {
+  const response = await adminFetch(`${API}?action=archivo_pedido&id=${encodeURIComponent(orderId)}&tipo=${encodeURIComponent(type)}`);
+  if (!response.ok) {
+    const raw = await response.text();
+    let message = `No se pudo descargar el archivo (${response.status}).`;
+    try { message = JSON.parse(raw)?.error || message; } catch { /* respuesta no JSON */ }
+    throw new Error(message);
+  }
+  const blobUrl = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = `clubhuella_pedido_${orderId}_${type}.${type === 'dtf' ? 'png' : 'jpg'}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+}
+
 function estadoBadge(estado) {
   const e = ESTADOS.find((x) => x.value === estado) ?? ESTADOS[0];
   return (
@@ -84,8 +104,43 @@ function PedidoModal({ pedido, onClose, onSaved }) {
   const [form, setForm] = useState(pedido ? { ...pedido } : { ...EMPTY_FORM });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [printPreview, setPrintPreview] = useState('');
+  const [printPreviewError, setPrintPreviewError] = useState('');
+  const [printPreviewLoading, setPrintPreviewLoading] = useState(false);
 
   const isEdit = Boolean(pedido?.id);
+
+  useEffect(() => {
+    if (!isEdit) return undefined;
+    const controller = new AbortController();
+    let objectUrl = '';
+    let active = true;
+    setPrintPreviewLoading(true);
+    adminFetch(`${API}?action=archivo_pedido&id=${encodeURIComponent(pedido.id)}&tipo=dtf&inline=1`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          const raw = await response.text();
+          let message = 'Todavía no hay un archivo DTF guardado para este pedido.';
+          try { message = JSON.parse(raw)?.error || message; } catch { /* respuesta no JSON */ }
+          throw new Error(message);
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        if (active) setPrintPreview(objectUrl);
+        else URL.revokeObjectURL(objectUrl);
+      })
+      .catch((previewError) => {
+        if (active && previewError.name !== 'AbortError') setPrintPreviewError(previewError.message);
+      })
+      .finally(() => { if (active) setPrintPreviewLoading(false); });
+    return () => {
+      active = false;
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [isEdit, pedido?.id]);
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -161,12 +216,10 @@ function PedidoModal({ pedido, onClose, onSaved }) {
             />
             <button
               type="button"
-              onClick={() =>
-                downloadImage(
-                  form.imagen_url_completa || form.imagen_url,
-                  `diseno_${form.nombre_mascota || form.id || "pedido"}.jpg`
-                )
-              }
+              onClick={() => (form.id
+                ? downloadOrderFile(form.id, 'original')
+                : downloadImage(form.imagen_url_completa || form.imagen_url, `diseno_${form.nombre_mascota || 'pedido'}.jpg`)
+              ).catch((downloadError) => setError(downloadError.message))}
               className="absolute top-6 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-black/70 backdrop-blur text-white hover:bg-black/90 transition"
               title="Descargar imagen"
             >
@@ -177,6 +230,21 @@ function PedidoModal({ pedido, onClose, onSaved }) {
               </svg>
               Descargar
             </button>
+          </div>
+        )}
+
+        {isEdit && (
+          <div className="mx-6 mt-4 rounded-xl border border-[#2a2f3a] bg-[#0f1115] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-white">Archivo listo para estampar</div>
+                <div className="mt-1 text-xs text-gray-500">PNG DTF generado para este pedido.</div>
+              </div>
+              {printPreview && <button type="button" onClick={() => downloadOrderFile(form.id, 'dtf').catch((downloadError) => setPrintPreviewError(downloadError.message))} className="rounded-lg bg-yellow-400 px-3 py-2 text-xs font-bold text-black hover:bg-yellow-300">Descargar PNG DTF</button>}
+            </div>
+            {printPreviewLoading && <div className="mt-4 text-xs text-gray-500">Buscando archivo guardado…</div>}
+            {printPreviewError && <div className="mt-4 rounded-lg bg-[#241d18] px-3 py-2 text-xs leading-relaxed text-amber-200">{printPreviewError}</div>}
+            {printPreview && <img src={printPreview} alt={`Archivo DTF del pedido ${form.id}`} className="mt-4 max-h-72 w-full rounded-lg bg-white object-contain p-2" />}
           </div>
         )}
 
@@ -250,7 +318,7 @@ function PedidoModal({ pedido, onClose, onSaved }) {
 }
 
 /* ─── Panel principal ─────────────────────────────────────────── */
-export default function PedidosAdmin() {
+export default function PedidosAdmin({ onLogout = () => {} }) {
   const [pedidos, setPedidos]   = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState("");
@@ -298,12 +366,10 @@ export default function PedidosAdmin() {
               {pedidos.length} pedidos · facturado {money(totalFacturado)}
             </p>
           </div>
-          <button
-            onClick={() => setModal("create")}
-            className="px-5 py-2 rounded-xl bg-yellow-400 text-black font-bold text-sm hover:bg-yellow-300 transition"
-          >
-            + Nuevo pedido
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setModal("create")} className="px-5 py-2 rounded-xl bg-yellow-400 text-black font-bold text-sm hover:bg-yellow-300 transition">+ Nuevo pedido</button>
+            <button onClick={onLogout} className="inline-flex items-center gap-2 rounded-xl border border-[#2a2f3a] px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-[#171a21]" aria-label="Cerrar sesión"><FiLogOut /> Salir</button>
+          </div>
         </div>
 
         {/* Estado */}
